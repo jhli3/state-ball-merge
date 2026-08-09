@@ -6,13 +6,9 @@ Built as a single static `index.html` — no build step, no dependencies to inst
 
 ## Running it
 
-Open `index.html` directly in a browser, or serve the folder locally:
+Play it live: **https://jhli3.github.io/state-ball-merge/**
 
-```bash
-python3 -m http.server 8080
-```
-
-then visit `http://localhost:8080`.
+Or run it locally — it's a static site, so just open `index.html` directly in a browser, or serve the folder however you like.
 
 ## How to play
 
