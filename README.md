@@ -24,6 +24,7 @@ Merge two balls of the same state and they combine into the next-largest state. 
 - **Choose States** — pick any subset of the 50 states to play with (or use a region preset: Northeast, Midwest, South, West). Click-and-drag across the picker to bulk select/deselect.
 - **Discovered chart** — a sidebar grid tracking every state you've unlocked so far. Click a discovered state to clear all of its balls off the board.
 - **Scoring** — points for every merge (bigger merges are worth a lot more), with your session score and all-time best both on screen.
+- **Leaderboard** — tracks your top 5 scores across completed runs, locally in `localStorage`. A run's score is banked to the board whenever you restart.
 - **Progress saves automatically** — your board, score, and discovered states persist in `localStorage`, so a reload picks up right where you left off.
 - **Ambient audio** — an optional generative background of soft chord pads and a wandering bell melody, in the same pentatonic scale as the merge/drop sound effects.
 
@@ -40,7 +41,7 @@ Merge two balls of the same state and they combine into the next-largest state. 
 - `js/` — game logic, one file per concern, loaded in this order:
   - `state.js` — the shared `Game.state` object (the only state modules pass between each other)
   - `config.js` — master state list, region presets, tier construction
-  - `scoring.js` — points and high-score persistence
+  - `scoring.js` — points, high-score, and leaderboard persistence
   - `audio.js` — the synthesized sound effects and ambient music
   - `physics.js` — Matter.js engine/renderer/walls, marble spawning
   - `chart.js` — the "Discovered" sidebar

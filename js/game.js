@@ -41,6 +41,8 @@ Game.core = (function() {
   }
 
   function resetGame(names) {
+    Game.scoring.recordLeaderboardEntry(Game.state.currentScore);
+
     Game.state.TIERS = Game.config.buildTiers(names);
     Game.state.unlockedSet = new Set([0]);
     Composite.clear(engine.world, true);
@@ -54,6 +56,7 @@ Game.core = (function() {
     updateNextCard();
     Game.chart.renderChart();
     Game.scoring.updateScoreDisplay();
+    Game.scoring.renderLeaderboard();
     saveGameState();
   }
 
@@ -133,6 +136,7 @@ Game.core = (function() {
       updateNextCard();
       Game.chart.renderChart();
       Game.scoring.updateScoreDisplay();
+      Game.scoring.renderLeaderboard();
       return true;
     } catch (e) {
       return false;
