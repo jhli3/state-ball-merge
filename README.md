@@ -25,6 +25,7 @@ Merge two balls of the same state and they combine into the next-largest state. 
 - **Discovered chart** — a sidebar grid tracking every state you've unlocked so far. Click a discovered state to clear all of its balls off the board.
 - **Scoring** — points for every merge (bigger merges are worth a lot more), with your session score and all-time best both on screen.
 - **Leaderboard** — tracks your top 5 scores across completed runs, locally in `localStorage`. A run's score is banked to the board whenever you restart.
+- **Marble shape** *(prototype, this branch only)* — toggle between the default glass-marble look and a flat 2D hexagon; the choice persists across reloads. This is a real physics swap, not just a re-skin: hexagon mode spawns actual `Bodies.polygon` collision shapes, so hexagons roll, settle, and stack differently than the circular marbles — switching the toggle mid-game rebuilds every marble on the board in place.
 - **Progress saves automatically** — your board, score, and discovered states persist in `localStorage`, so a reload picks up right where you left off.
 - **Ambient audio** — an optional generative background of soft chord pads and a wandering bell melody, in the same pentatonic scale as the merge/drop sound effects.
 
@@ -43,11 +44,11 @@ Merge two balls of the same state and they combine into the next-largest state. 
   - `config.js` — master state list, region presets, tier construction
   - `scoring.js` — points, high-score, and leaderboard persistence
   - `audio.js` — the synthesized sound effects and ambient music
-  - `physics.js` — Matter.js engine/renderer/walls, marble spawning
+  - `physics.js` — Matter.js engine/renderer/walls, marble spawning (circle or hexagon collision body, per `Game.state.marbleShape`)
   - `chart.js` — the "Discovered" sidebar
   - `game.js` — drop/merge rules, save/load, reset
   - `input.js` — mouse, keyboard, hold-to-stream, gamepad
-  - `render.js` — canvas drawing (ghost marble, flag art, glass highlight)
+  - `render.js` — canvas drawing (ghost marble, flag art, glass highlight, marble/hexagon shape toggle)
   - `ui.js` — Choose States modal, success screen, how-to modal, viewport scaling
   - `main.js` — boots the game once everything above is loaded
 - `assets/` — SVG flag/outline images for each state

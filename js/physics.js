@@ -71,17 +71,64 @@ Game.physics = (function() {
     return Math.max(radius + 12, Math.min(WIDTH - radius - 12, x));
   }
 
+  // Same angle formula as render.js's tracePath() — vertices at 0°,60°,...,300°
+  // straddle the bottom (90° in canvas coordinates) instead of landing on it,
+  // so the resting shape has a flat edge down, not a corner. Built by hand
+  // with Bodies.fromVertices rather than Bodies.polygon (which offsets its
+  // vertices by 30° and would put a corner right back at the bottom) so the
+  // collision shape matches the drawing exactly.
+  function hexagonVertices(radius) {
+    const points = [];
+    for (let i = 0; i < 6; i++) {
+      const angle = (Math.PI / 3) * i;
+      points.push({ x: radius * Math.cos(angle), y: radius * Math.sin(angle) });
+    }
+    return points;
+  }
+
   function spawnMarble(x, y, tierIndex, megaScale = 1) {
     const tier = Game.state.TIERS[tierIndex];
-    const body = Bodies.circle(x, y, tier.radius * megaScale, {
+    const radius = tier.radius * megaScale;
+    const bodyOptions = {
       restitution: 0.3,
       friction: 0.05,
       frictionAir: 0.01,
       render: { visible: false }
-    });
+    };
+
+    const isHexagon = Game.state.marbleShape === 'hexagon';
+    const body = isHexagon
+      ? Bodies.fromVertices(x, y, [hexagonVertices(radius)], bodyOptions)
+      : Bodies.circle(x, y, radius, bodyOptions);
+
+    if (isHexagon) {
+      // A hexagon dropped dead-center with zero spin onto a flat surface is
+      // in a perfectly symmetric, torque-free state — nothing in the sim
+      // will ever break that tie, so without this nudge it really can end
+      // up sitting flush on a corner forever. Real objects never fall with
+      // exactly zero spin; this just restores that small imperfection so it
+      // reliably tips and settles onto a side instead.
+      Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.06);
+    }
+
     body.gameTier = tierIndex;
     body.megaScale = megaScale;
     return body;
+  }
+
+  // Swaps every marble's collision shape to match the current
+  // Game.state.marbleShape — needed because Matter.js bodies can't change
+  // shape in place, so switching the shape toggle mid-game has to tear down
+  // and respawn each body rather than just re-rendering it.
+  function rebuildBodies() {
+    const existing = Composite.allBodies(engine.world).filter(b => b.gameTier !== undefined);
+    existing.forEach(b => {
+      const fresh = spawnMarble(b.position.x, b.position.y, b.gameTier, b.megaScale || 1);
+      Body.setVelocity(fresh, b.velocity);
+      Body.setAngle(fresh, b.angle);
+      Composite.remove(engine.world, b);
+      Composite.add(engine.world, fresh);
+    });
   }
 
   // Checks whether the drop point is still clear of other marbles. Without
@@ -109,6 +156,6 @@ Game.physics = (function() {
   return {
     WIDTH, HEIGHT, engine, render, containerEl,
     MEGA_GROWTH, MAX_MEGA_SCALE,
-    clampAimX, spawnMarble, isDropZoneClear
+    clampAimX, spawnMarble, rebuildBodies, isDropZoneClear
   };
 })();

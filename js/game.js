@@ -246,7 +246,9 @@ Game.core = (function() {
         bodyA.gameTier !== undefined &&
         bodyA.gameTier === bodyB.gameTier &&
         !toRemove.has(bodyA) &&
-        !toRemove.has(bodyB)
+        !toRemove.has(bodyB) &&
+        !bodyA.isMerging &&
+        !bodyB.isMerging
       ) {
         const isMaxTier = bodyA.gameTier === Game.state.TIERS.length - 1;
         const nextTierIndex = bodyA.gameTier + 1;
@@ -254,6 +256,16 @@ Game.core = (function() {
         if (isMaxTier || nextTierIndex < Game.state.TIERS.length) {
           toRemove.add(bodyA);
           toRemove.add(bodyB);
+          // toRemove only guards against processing the same pair twice
+          // within THIS collisionStart event. Bodies whose removal is
+          // deferred (below) can still fire a brand-new collisionStart event
+          // if they separate and re-touch before that removal runs — flat
+          // hexagon edges bouncing off each other's corners makes this a
+          // real occurrence, not just a theoretical race. This flag persists
+          // on the body itself so a later event for the same still-alive
+          // pair is ignored instead of double-merging it.
+          bodyA.isMerging = true;
+          bodyB.isMerging = true;
           Game.state.mergeCount++;
 
           const midX = (bodyA.position.x + bodyB.position.x) / 2;
