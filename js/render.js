@@ -2,6 +2,25 @@
 Game.render = (function() {
   const render = Game.physics.render;
 
+  // Glass Sphere Highlight Effect — shared by the aim ghost and dropped
+  // marbles so a held marble looks the same as one already on the board,
+  // instead of reading as flat until the moment it's dropped.
+  function drawGlassHighlight(ctx, radius) {
+    const grad = ctx.createRadialGradient(-radius * 0.3, -radius * 0.3, radius * 0.1, 0, 0, radius);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
+    grad.addColorStop(0.7, 'rgba(255, 255, 255, 0.0)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0.25)');
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
   function drawMarbleImage(ctx, tier, radius) {
     if (tier.imgObj.complete && tier.imgObj.naturalWidth !== 0) {
       ctx.beginPath();
@@ -49,6 +68,7 @@ Game.render = (function() {
       ctx.save();
       ctx.translate(Game.state.aimX, 48);
       drawMarbleImage(ctx, currentData, radius);
+      drawGlassHighlight(ctx, radius);
       ctx.restore();
 
       ctx.save();
@@ -75,21 +95,7 @@ Game.render = (function() {
 
         // Draw Flag SVG
         drawMarbleImage(ctx, tier, radius);
-
-        // Glass Sphere Highlight Effect
-        const grad = ctx.createRadialGradient(-radius * 0.3, -radius * 0.3, radius * 0.1, 0, 0, radius);
-        grad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
-        grad.addColorStop(0.7, 'rgba(255, 255, 255, 0.0)');
-        grad.addColorStop(1, 'rgba(0, 0, 0, 0.25)');
-
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        drawGlassHighlight(ctx, radius);
 
         // Extra golden ring for a maxed-out state that's been merged into itself
         if (megaScale > 1) {
