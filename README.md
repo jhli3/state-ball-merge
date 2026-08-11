@@ -2,7 +2,7 @@
 
 A zen little merge game: drop balls, merge two of the same U.S. state together, and watch them grow into the next-biggest state — all the way up to the largest one you've selected.
 
-Built as a single static `index.html` — no build step, no dependencies to install.
+Built as a static site (plain HTML/CSS/JS, no build step, no dependencies to install).
 
 ## Running it
 
@@ -35,6 +35,21 @@ Merge two balls of the same state and they combine into the next-largest state. 
 
 ## Files
 
-- `index.html` — the entire game (markup, styles, and logic)
+- `index.html` — markup only
+- `css/styles.css` — all styles
+- `js/` — game logic, one file per concern, loaded in this order:
+  - `state.js` — the shared `Game.state` object (the only state modules pass between each other)
+  - `config.js` — master state list, region presets, tier construction
+  - `scoring.js` — points and high-score persistence
+  - `audio.js` — the synthesized sound effects and ambient music
+  - `physics.js` — Matter.js engine/renderer/walls, marble spawning
+  - `chart.js` — the "Discovered" sidebar
+  - `game.js` — drop/merge rules, save/load, reset
+  - `input.js` — mouse, keyboard, hold-to-stream, gamepad
+  - `render.js` — canvas drawing (ghost marble, flag art, glass highlight)
+  - `ui.js` — Choose States modal, success screen, how-to modal, viewport scaling
+  - `main.js` — boots the game once everything above is loaded
 - `assets/` — SVG flag/outline images for each state
 - `download-flags.js` — one-off script used to fetch the assets
+
+Each `js/` file attaches its public functions to a shared `Game` namespace (e.g. `Game.audio`, `Game.core`) instead of using bare globals, so it's a clear seam to extend — a `Game.net` module for multiplayer, for instance, would slot in the same way. Everything loads as plain `<script>` tags (no ES modules, no bundler), so `index.html` still opens directly from disk.
