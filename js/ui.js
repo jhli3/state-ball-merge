@@ -50,6 +50,7 @@ Game.ui = (function() {
 
       const item = document.createElement('div');
       item.className = `modal-state-item ${isChecked ? 'checked' : ''}`;
+      item.tabIndex = 0;
       item.innerHTML = `
         <input type="checkbox" tabindex="-1" ${isChecked ? 'checked' : ''} />
         <div class="modal-state-flag" style="background-image: url('assets/${fileName}');"></div>
@@ -66,6 +67,19 @@ Game.ui = (function() {
       item.addEventListener('mouseenter', () => {
         if (isDragSelecting) setItemChecked(item, name, dragSelectValue);
       });
+
+      // Keyboard (Enter/Space) support alongside the gamepad's own activation
+      // hook below — both toggle the same way a click would.
+      item.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setItemChecked(item, name, !pendingSelection.has(name));
+        }
+      });
+
+      // Consumed by the gamepad focus system (input.js) — these tiles are
+      // divs, not buttons, so a plain .click() wouldn't toggle them.
+      item._gamepadActivate = () => setItemChecked(item, name, !pendingSelection.has(name));
 
       modalGrid.appendChild(item);
     });

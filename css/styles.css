@@ -652,3 +652,11 @@ canvas {
   line-height: 1.5;
   margin-top: 14px;
 }
+
+/* Virtual cursor for switch-controller/gamepad navigation (see input.js) —
+   amber so it reads clearly against every button color in the palette. */
+.gamepad-focused {
+  outline: 3px solid #f59e0b;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.25);
+}
