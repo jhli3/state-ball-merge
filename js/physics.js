@@ -5,10 +5,12 @@
 Game.physics = (function() {
   const { Engine, Render, Bodies, Composite, Events, Body, Vector } = Matter;
 
-  const WIDTH = 640;
+  const WIDTH = 900;
   const HEIGHT = 720;
 
-  const engine = Engine.create({ gravity: { x: 0, y: 0.65 } });
+  const GRAVITY_Y = 0.65;
+
+  const engine = Engine.create({ gravity: { x: 0, y: GRAVITY_Y } });
   const containerEl = document.getElementById('game-container');
 
   const render = Render.create({
@@ -39,6 +41,26 @@ Game.physics = (function() {
 
   Composite.add(engine.world, [ground, ceiling, leftWall, rightWall]);
 
+  // Space mode has no gravity to pull a stray marble back down, so the far-off
+  // ceiling above (which is what lets container mode's shake give a marble a
+  // fun little peek above the frame) would otherwise let it drift up past
+  // y=0 and sit there forever, invisible and unreachable by the same-tier
+  // attraction. This wall sits flush with the actual visible top edge
+  // instead, and is only added to the world while in space mode — see
+  // setPhysicsMode below.
+  const spaceCeiling = Bodies.rectangle(WIDTH / 2, -30, WIDTH * 2, 60, wallOpts);
+
+  // Container mode falls under normal downward gravity with the far ceiling
+  // above; space mode floats (zero gravity), relies on the same-tier
+  // attraction below instead of gravity, and swaps in the flush ceiling so
+  // nothing can drift out of the visible box. render.js's mode toggle calls
+  // this on switch and once at startup.
+  function setPhysicsMode(mode) {
+    engine.gravity.y = mode === 'space' ? 0 : GRAVITY_Y;
+    if (mode === 'space') Composite.add(engine.world, spaceCeiling);
+    else Composite.remove(engine.world, spaceCeiling);
+  }
+
   // Once the largest state is reached, merging two of them no longer upgrades
   // to a new tier — instead it grows into a bigger version of the same state,
   // up to a cap so it never outgrows the container.
@@ -67,8 +89,95 @@ Game.physics = (function() {
     });
   });
 
+  // Space-mode-only attraction: every marble pulls on every other marble,
+  // more strongly the closer their sizes are — same-tier pairs pull
+  // hardest, wildly different sizes still feel a faint pull rather than
+  // nothing, via the floor below. That's what lets the board sort itself
+  // into same-size clusters (the near-equal pairs win out and merge) without
+  // completely ignoring marbles that don't share an exact tier.
+  const ATTRACTION_RANGE = 260; // px — beyond this, no pull at all
+  const ATTRACTION_REF_DIST = 80; // px — the pull strength is calibrated at this distance
+  const ATTRACTION_ACCEL = 0.0011; // accel at ATTRACTION_REF_DIST for a same-size pair; same order of magnitude as gravity's per-step pull, so clustering reads as gentle drifting rather than a snap
+  const ATTRACTION_CONTACT_GAP = 4; // px of clearance past "touching" before the pull kicks back in, so it doesn't fight the collision response of marbles already in contact (or about to merge)
+  const SIZE_SIMILARITY_REF = 56; // px of radius difference at which the size-based part of the pull has roughly halved — scaled with config.js's larger tier radii so "how different is different" still means the same thing in relative terms
+  const ATTRACTION_SIZE_FLOOR = 0.08; // minimum relative strength even between the most different sizes on the board, so no pair is ever completely unaffected
+
+  // Space-mode-only centering: a gentle, ever-present pull toward the middle
+  // of the canvas, independent of size or distance. Its job is to undo
+  // whatever container mode's gravity left behind — a pile at the bottom —
+  // so switching modes mid-game isn't a dead stop; everything gradually
+  // drifts back toward center on its own.
+  const CENTER_PULL_ACCEL = 0.0004;
+
+  Events.on(engine, 'beforeUpdate', () => {
+    if (Game.state.marbleMode !== 'space') return;
+
+    const bodies = Composite.allBodies(engine.world).filter(b => b.gameTier !== undefined && !b.isMerging);
+    const centerX = WIDTH / 2;
+    const centerY = HEIGHT / 2;
+
+    bodies.forEach(b => {
+      const dx = centerX - b.position.x;
+      const dy = centerY - b.position.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 1) return;
+      Body.applyForce(b, b.position, {
+        x: (dx / dist) * CENTER_PULL_ACCEL * b.mass,
+        y: (dy / dist) * CENTER_PULL_ACCEL * b.mass
+      });
+    });
+
+    for (let i = 0; i < bodies.length; i++) {
+      const a = bodies[i];
+      const aRadius = Game.state.TIERS[a.gameTier].radius * (a.megaScale || 1);
+
+      for (let j = i + 1; j < bodies.length; j++) {
+        const b = bodies[j];
+
+        const dx = b.position.x - a.position.x;
+        const dy = b.position.y - a.position.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < 1) continue;
+
+        const dist = Math.sqrt(distSq);
+        if (dist > ATTRACTION_RANGE) continue;
+
+        const bRadius = Game.state.TIERS[b.gameTier].radius * (b.megaScale || 1);
+        if (dist < aRadius + bRadius + ATTRACTION_CONTACT_GAP) continue;
+
+        // Inverse-square distance falloff, clamped so it can't spike near
+        // the contact boundary above.
+        const effectiveDist = Math.max(dist, ATTRACTION_REF_DIST * 0.5);
+        const distanceAccel = ATTRACTION_ACCEL * (ATTRACTION_REF_DIST * ATTRACTION_REF_DIST) / (effectiveDist * effectiveDist);
+
+        // Size-similarity falloff: 1 for an exact size match, decaying
+        // toward (but never below) the floor as the radius gap widens.
+        const radiusDiff = Math.abs(aRadius - bRadius);
+        const sizeFactor = ATTRACTION_SIZE_FLOOR + (1 - ATTRACTION_SIZE_FLOOR) / (1 + (radiusDiff / SIZE_SIMILARITY_REF) ** 2);
+
+        const accel = distanceAccel * sizeFactor;
+        const ux = dx / dist;
+        const uy = dy / dist;
+
+        // applyForce takes a force, not an acceleration, so scale by each
+        // body's own mass — Matter divides back out by mass during
+        // integration, which is what keeps the resulting acceleration equal
+        // to `accel` for every tier instead of favoring light/heavy marbles.
+        Body.applyForce(a, a.position, { x: ux * accel * a.mass, y: uy * accel * a.mass });
+        Body.applyForce(b, b.position, { x: -ux * accel * b.mass, y: -uy * accel * b.mass });
+      }
+    }
+  });
+
   function clampAimX(x, radius) {
     return Math.max(radius + 12, Math.min(WIDTH - radius - 12, x));
+  }
+
+  // Space mode places a marble wherever you point rather than at a fixed
+  // chute Y, so it needs the same wall-aware clamp vertically that
+  // clampAimX already does horizontally.
+  function clampAimY(y, radius) {
+    return Math.max(radius + 12, Math.min(HEIGHT - radius - 12, y));
   }
 
   // Same angle formula as render.js's tracePath() — vertices at 0°,60°,...,300°
@@ -217,11 +326,13 @@ Game.physics = (function() {
   }
 
   Game.state.aimX = WIDTH / 2;
+  Game.state.aimY = HEIGHT / 2;
 
   return {
     WIDTH, HEIGHT, engine, render, containerEl,
     MEGA_GROWTH, MAX_MEGA_SCALE,
-    clampAimX, spawnMarble, rebuildBodies, isDropZoneClear,
+    setPhysicsMode,
+    clampAimX, clampAimY, spawnMarble, rebuildBodies, isDropZoneClear,
     // Exported (unlike hexagonVertices, which render.js re-derives by hand)
     // because the corner-rounding math is nontrivial enough that keeping two
     // independent copies in sync isn't worth it — render.js's tracePath()

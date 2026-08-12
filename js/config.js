@@ -43,7 +43,10 @@ Game.config = (function() {
   function buildTiers(names) {
     const maxIndex = Math.max(1, names.length - 1);
     return names.map((name, index) => {
-      const radius = Math.round(14 + Math.pow(index / maxIndex, 1.35) * 91);
+      // Scaled up ~40% from the original 14-105 range to match the wider
+      // (640 -> 900px) canvas — the smallest tier in particular used to be
+      // too small to make out its flag art.
+      const radius = Math.round(20 + Math.pow(index / maxIndex, 1.35) * 128);
       const hue = Math.round((index / maxIndex) * 330);
       const color = `hsl(${hue}, 75%, 55%)`;
       const fileName = name.toLowerCase().replace(/ /g, '_') + '.svg';

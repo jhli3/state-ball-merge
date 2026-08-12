@@ -25,7 +25,8 @@ Merge two balls of the same state and they combine into the next-largest state. 
 - **Discovered chart** — a sidebar grid tracking every state you've unlocked so far. Click a discovered state to clear all of its balls off the board.
 - **Scoring** — points for every merge (bigger merges are worth a lot more), with your session score and all-time best both on screen.
 - **Leaderboard** — tracks your top 5 scores across completed runs, locally in `localStorage`. A run's score is banked to the board whenever you restart.
-- **Marble shape** *(prototype, this branch only)* — toggle between the default glass-marble look and a flat 2D hexagon; the choice persists across reloads. This is a real physics swap, not just a re-skin: hexagon mode spawns actual `Bodies.polygon` collision shapes, so hexagons roll, settle, and stack differently than the circular marbles — switching the toggle mid-game rebuilds every marble on the board in place.
+- **Marble shape** *(prototype, this branch only)* — toggle between the default glass-marble look and a flat 2D hexagon or a rounded star; the choice persists across reloads. This is a real physics swap, not just a re-skin: non-sphere modes spawn actual polygon collision shapes, so they roll, settle, and stack differently than the circular marbles — switching the toggle mid-game rebuilds every marble on the board in place.
+- **Space mode** *(prototype, this branch only)* — toggle from Container to Space to turn off gravity: aim anywhere in the box (mouse, or `←→↑↓`/left stick) and the same controls as dropping (click, Shift, hold to stream, gamepad) place the marble at rest right there, instead of dropping it from a fixed top chute. Marbles float and bounce off the walls — sealed on all four sides so nothing can drift out of view the way container mode's shake-peek can. Every marble gently pulls on every other one, more strongly the closer their sizes are, so same-size marbles cluster and merge fastest while everything else still feels some pull; a separate, gentle pull toward the center keeps re-gathering the board too, so switching in mid-game from a gravity-piled Container board doesn't leave things stuck wherever they landed. Round marbles only — switching to Space mode forces the shape back to Marble and locks the shape toggle until you switch back.
 - **Progress saves automatically** — your board, score, and discovered states persist in `localStorage`, so a reload picks up right where you left off.
 - **Ambient audio** — an optional generative background of soft chord pads and a wandering bell melody, in the same pentatonic scale as the merge/drop sound effects.
 
@@ -44,7 +45,7 @@ Merge two balls of the same state and they combine into the next-largest state. 
   - `config.js` — master state list, region presets, tier construction
   - `scoring.js` — points, high-score, and leaderboard persistence
   - `audio.js` — the synthesized sound effects and ambient music
-  - `physics.js` — Matter.js engine/renderer/walls, marble spawning (circle or hexagon collision body, per `Game.state.marbleShape`)
+  - `physics.js` — Matter.js engine/renderer/walls, marble spawning (circle/hexagon/star collision body per `Game.state.marbleShape`), gravity toggle, size-weighted attraction and center pull for Space mode
   - `chart.js` — the "Discovered" sidebar
   - `game.js` — drop/merge rules, save/load, reset
   - `input.js` — mouse, keyboard, hold-to-stream, gamepad

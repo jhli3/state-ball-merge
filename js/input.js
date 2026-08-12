@@ -2,15 +2,40 @@
 Game.input = (function() {
   const render = Game.physics.render;
 
-  render.canvas.addEventListener('mousemove', (e) => {
+  function toCanvasCoords(e) {
     const rect = render.canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (Game.physics.WIDTH / rect.width),
+      y: (e.clientY - rect.top) * (Game.physics.HEIGHT / rect.height)
+    };
+  }
+
+  // Container mode only needs the X half of this (aimY sits unused at
+  // whatever default it started at) — space mode places freely, so it
+  // tracks the full pointer position.
+  render.canvas.addEventListener('mousemove', (e) => {
+    const pos = toCanvasCoords(e);
     const radius = Game.state.TIERS[Game.state.currentTier].radius;
-    const scaleX = Game.physics.WIDTH / rect.width;
-    Game.state.aimX = Game.physics.clampAimX((e.clientX - rect.left) * scaleX, radius);
+    Game.state.aimX = Game.physics.clampAimX(pos.x, radius);
+    Game.state.aimY = Game.physics.clampAimY(pos.y, radius);
   });
 
-  // --- Press-and-hold streaming drop (Shift key or mouse/pointer held down) ---
-  // The longer you hold, the faster it drops — ramping from the normal drop
+  // Container mode drops from the fixed top chute; space mode places the
+  // marble at rest wherever aimX/aimY currently point, and lets the
+  // attraction/center-pull forces (physics.js) carry it from there — no
+  // velocity involved. Every input path below (click, hold-to-stream, Shift,
+  // gamepad) goes through this one dispatcher instead of calling dropMarble
+  // directly, so space mode gets the exact same controls for free.
+  function fireCurrent() {
+    if (Game.state.marbleMode === 'space') {
+      Game.core.placeMarble(Game.state.aimX, Game.state.aimY);
+    } else {
+      Game.core.dropMarble();
+    }
+  }
+
+  // --- Press-and-hold streaming (Shift key or mouse/pointer held down) ---
+  // The longer you hold, the faster it fires — ramping from the normal
   // cooldown down to a capped minimum, so it speeds up but never runs away.
   let holdSources = new Set();
   let holdTimer = null;
@@ -31,7 +56,7 @@ Game.input = (function() {
   function scheduleNextHoldDrop() {
     if (holdSources.size === 0) return;
     holdTimer = setTimeout(() => {
-      Game.core.dropMarble();
+      fireCurrent();
       scheduleNextHoldDrop();
     }, currentDropCooldown());
   }
@@ -41,7 +66,7 @@ Game.input = (function() {
     holdSources.add(source);
     if (wasIdle) {
       holdStartTime = performance.now();
-      Game.core.dropMarble();
+      fireCurrent();
       scheduleNextHoldDrop();
     }
   }
@@ -55,7 +80,7 @@ Game.input = (function() {
   }
 
   // Used by modal-opening code elsewhere so a hold in progress doesn't keep
-  // streaming drops in the background while a dialog is up.
+  // streaming in the background while a dialog is up.
   function cancelHold() {
     holdSources.clear();
     if (holdTimer) {
@@ -91,6 +116,12 @@ Game.input = (function() {
       Game.state.aimX = Game.physics.clampAimX(Game.state.aimX - step, radius);
     } else if (e.key === 'ArrowRight') {
       Game.state.aimX = Game.physics.clampAimX(Game.state.aimX + step, radius);
+    } else if (e.key === 'ArrowUp') {
+      // Only meaningful in space mode's free 2D placement — harmless no-op
+      // effect in container mode, where aimY isn't read for anything.
+      Game.state.aimY = Game.physics.clampAimY(Game.state.aimY - step, radius);
+    } else if (e.key === 'ArrowDown') {
+      Game.state.aimY = Game.physics.clampAimY(Game.state.aimY + step, radius);
     } else if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       Game.core.restartGame();
@@ -305,7 +336,7 @@ Game.input = (function() {
       stickFocusDirX = axisToDir(pad.axes[0] || 0);
     }
 
-    // A: activate the focused control if there is one, otherwise drop (held
+    // A: activate the focused control if there is one, otherwise fire (held
     // for a stream, same as Shift/mouse) like before.
     if (justPressed(1)) {
       if (gamepadFocusEl) activateGamepadFocus();
@@ -320,9 +351,10 @@ Game.input = (function() {
     }
 
     if (!modalOpen && !gamepadFocusEl) {
+      // Aim: left stick X-axis (analog) plus D-pad left/right (digital step).
+      // Works the same in both modes — space mode's launch line slides with
+      // aimX exactly like the container chute does.
       const radius = Game.state.TIERS[Game.state.currentTier].radius;
-
-      // Aim: left stick X-axis (analog) plus D-pad left/right (digital step)
       const stickX = pad.axes[0] || 0;
       if (Math.abs(stickX) > GAMEPAD_STICK_DEADZONE) {
         Game.state.aimX = Game.physics.clampAimX(Game.state.aimX + stickX * GAMEPAD_AIM_SPEED, radius);

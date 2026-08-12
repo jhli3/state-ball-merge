@@ -315,6 +315,11 @@ body {
   color: #166534;
 }
 
+.audio-toggle-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 #game-container {
   position: relative;
   transition: transform 0.05s ease-in-out;

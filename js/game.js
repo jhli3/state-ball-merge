@@ -182,6 +182,39 @@ Game.core = (function() {
     saveGameState();
   }
 
+  // Space-mode counterpart to dropMarble: spawns the current-tier marble at
+  // rest wherever you're pointing, instead of letting gravity carry it down
+  // from a fixed top chute — the attraction/center-pull forces (physics.js)
+  // are what move it from there. Shares dropMarble's cooldown, drop-zone
+  // check, and tier-progression/scoring/save flow — input.js's fireCurrent()
+  // is what decides which of the two gets called, so both modes end up with
+  // identical click/hold-to-stream/Shift/gamepad controls.
+  function placeMarble(x, y) {
+    Game.audio.initAudio();
+    if (Game.state.isCooldown) return;
+
+    const radius = Game.state.TIERS[Game.state.currentTier].radius;
+    const clampedX = Game.physics.clampAimX(x, radius);
+    const clampedY = Game.physics.clampAimY(y, radius);
+
+    if (!Game.physics.isDropZoneClear(clampedX, clampedY, radius)) return;
+
+    const marble = Game.physics.spawnMarble(clampedX, clampedY, Game.state.currentTier);
+    Composite.add(engine.world, marble);
+    Game.state.dropCount++;
+
+    Game.audio.playZenTone(Game.state.currentTier, 2);
+
+    Game.state.currentTier = Game.state.nextTier;
+    Game.state.nextTier = pickWeightedTier();
+    updateNextCard();
+
+    Game.state.isCooldown = true;
+    setTimeout(() => { Game.state.isCooldown = false; }, Game.input.currentDropCooldown());
+
+    saveGameState();
+  }
+
   let isShakeCooldown = false;
   const SHAKE_COOLDOWN = 260;
 
@@ -358,6 +391,7 @@ Game.core = (function() {
     loadGameState,
     updateNextCard,
     dropMarble,
+    placeMarble,
     triggerShake,
     restartGame
   };

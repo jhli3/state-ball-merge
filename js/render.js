@@ -30,6 +30,45 @@ Game.render = (function() {
 
   updateShapeToggleLabel();
 
+  // --- Marble mode preference (container-with-gravity vs. floating space) ---
+  // Space mode only makes physical sense for the round marble (attraction +
+  // zero-g read as "planets", not as a hexagon or star), so switching into it
+  // forces the shape to sphere and locks the shape toggle until switching
+  // back out.
+  const MODE_STORAGE_KEY = 'smm-marble-mode';
+  const MODES = ['container', 'space'];
+  const MODE_LABELS = { container: '📦 Mode: Container', space: '🪐 Mode: Space' };
+  const savedMode = localStorage.getItem(MODE_STORAGE_KEY);
+  Game.state.marbleMode = MODES.includes(savedMode) ? savedMode : 'container';
+
+  const modeToggleBtn = document.getElementById('mode-toggle');
+
+  function updateModeToggleLabel() {
+    modeToggleBtn.textContent = MODE_LABELS[Game.state.marbleMode];
+    shapeToggleBtn.disabled = Game.state.marbleMode === 'space';
+  }
+
+  modeToggleBtn.addEventListener('click', () => {
+    const nextIndex = (MODES.indexOf(Game.state.marbleMode) + 1) % MODES.length;
+    Game.state.marbleMode = MODES[nextIndex];
+    try { localStorage.setItem(MODE_STORAGE_KEY, Game.state.marbleMode); } catch (e) { /* ignore */ }
+
+    Game.input.cancelHold();
+    Game.physics.setPhysicsMode(Game.state.marbleMode);
+
+    if (Game.state.marbleMode === 'space' && Game.state.marbleShape !== 'sphere') {
+      Game.state.marbleShape = 'sphere';
+      try { localStorage.setItem(SHAPE_STORAGE_KEY, Game.state.marbleShape); } catch (e) { /* ignore */ }
+      updateShapeToggleLabel();
+      Game.physics.rebuildBodies();
+    }
+
+    updateModeToggleLabel();
+  });
+
+  updateModeToggleLabel();
+  Game.physics.setPhysicsMode(Game.state.marbleMode);
+
   // Traces the current marble shape as a path centered on the origin, ready
   // for clip/fill/stroke — a circle in "sphere" mode, a flat-bottomed
   // hexagon in "hexagon" mode. Every place that used to draw a bare circle
@@ -120,29 +159,37 @@ Game.render = (function() {
   Matter.Events.on(render, 'afterRender', () => {
     const ctx = render.context;
 
-    // 1. Aim Line & Ghost Marble
     if (!Game.state.isCooldown) {
+      // 1. Ghost Marble — container mode drops straight down from a fixed
+      // top chute (aimX slides, Y is fixed, so a vertical dashed lane shows
+      // the drop path); space mode places freely wherever aimX/aimY point,
+      // so the ghost just follows the cursor with no lane to draw.
       const currentData = Game.state.TIERS[Game.state.currentTier];
       const radius = currentData.radius;
+      const isSpace = Game.state.marbleMode === 'space';
+      const ghostX = Game.state.aimX;
+      const ghostY = isSpace ? Game.state.aimY : 48;
+
+      if (!isSpace) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.setLineDash([6, 6]);
+        ctx.moveTo(ghostX, ghostY + radius);
+        ctx.lineTo(ghostX, Game.physics.HEIGHT - 20);
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      }
 
       ctx.save();
-      ctx.beginPath();
-      ctx.setLineDash([6, 6]);
-      ctx.moveTo(Game.state.aimX, 48 + radius);
-      ctx.lineTo(Game.state.aimX, Game.physics.HEIGHT - 20);
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.restore();
-
-      ctx.save();
-      ctx.translate(Game.state.aimX, 48);
+      ctx.translate(ghostX, ghostY);
       drawMarbleImage(ctx, currentData, radius);
       drawGlassHighlight(ctx, radius);
       ctx.restore();
 
       ctx.save();
-      ctx.translate(Game.state.aimX, 48);
+      ctx.translate(ghostX, ghostY);
       ctx.strokeStyle = '#3b82f6';
       ctx.lineWidth = 2;
       tracePath(ctx, radius);
