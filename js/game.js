@@ -228,19 +228,56 @@ Game.core = (function() {
     this.blur();
   });
 
-  // Collision & Merge Logic
-  Events.on(engine, 'collisionStart', (event) => {
-    const pairs = event.pairs;
-    const toRemove = new Set();
+  // A steady stream of same-tier marbles dropped at (near-)identical spawn
+  // points can spawn already slightly overlapping — isDropZoneClear allows
+  // up to 30% closer than their combined radii so the chute doesn't feel
+  // blocked during a fast hold-to-drop stream. Without this grace period,
+  // that overlap fires collisionStart immediately, merging two marbles that
+  // never actually fell anywhere. Blocking merges for a brief window after
+  // spawn lets Matter's normal (non-merge) collision resolution push them
+  // apart first, like it would for any other overlapping pair.
+  const MERGE_GRACE_MS = 200;
 
-    pairs.forEach(pair => {
-      const { bodyA, bodyB } = pair;
+  // Collision & Merge Logic
+  //
+  // A concave body (the star shape) isn't simulated as one convex piece —
+  // Matter.js decomposes it into several convex sub-parts under one parent,
+  // and collision pairs report whichever two PARTS actually touched, not the
+  // parent bodies. Only the parent carries gameTier/spawnTime/isMerging, so
+  // every pair gets resolved to `.parent` first (a no-op for plain bodies
+  // like the sphere/hexagon, where a body is its own parent). Skipping this
+  // would make star merges fire only when the one part that happens to equal
+  // the parent is what collides — i.e. rarely and unpredictably.
+  Events.on(engine, 'collisionStart', (event) => {
+    event.pairs.forEach(pair => {
+      const bodyA = pair.bodyA.parent;
+      const bodyB = pair.bodyB.parent;
       const speed = Vector.magnitude(Vector.sub(bodyA.velocity, bodyB.velocity));
 
       if (speed > 1.2) {
         const avgTier = ((bodyA.gameTier ?? 0) + (bodyB.gameTier ?? 0)) / 2;
         Game.audio.playZenTone(Math.floor(avgTier), speed, false);
       }
+    });
+
+    processMergeCollisions(event.pairs);
+  });
+
+  // Pairs still touching after collisionStart skipped them for being within
+  // the spawn grace period (above) wouldn't fire collisionStart again once
+  // that period lapses — they're still in continuous contact, not a fresh
+  // collision — so this catches them once they become eligible.
+  Events.on(engine, 'collisionActive', (event) => {
+    processMergeCollisions(event.pairs);
+  });
+
+  function processMergeCollisions(pairs) {
+    const toRemove = new Set();
+    const now = engine.timing.timestamp;
+
+    pairs.forEach(pair => {
+      const bodyA = pair.bodyA.parent;
+      const bodyB = pair.bodyB.parent;
 
       if (
         bodyA.gameTier !== undefined &&
@@ -248,7 +285,9 @@ Game.core = (function() {
         !toRemove.has(bodyA) &&
         !toRemove.has(bodyB) &&
         !bodyA.isMerging &&
-        !bodyB.isMerging
+        !bodyB.isMerging &&
+        now - bodyA.spawnTime >= MERGE_GRACE_MS &&
+        now - bodyB.spawnTime >= MERGE_GRACE_MS
       ) {
         const isMaxTier = bodyA.gameTier === Game.state.TIERS.length - 1;
         const nextTierIndex = bodyA.gameTier + 1;
@@ -257,8 +296,8 @@ Game.core = (function() {
           toRemove.add(bodyA);
           toRemove.add(bodyB);
           // toRemove only guards against processing the same pair twice
-          // within THIS collisionStart event. Bodies whose removal is
-          // deferred (below) can still fire a brand-new collisionStart event
+          // within THIS collision event. Bodies whose removal is
+          // deferred (below) can still fire a brand-new collision event
           // if they separate and re-touch before that removal runs — flat
           // hexagon edges bouncing off each other's corners makes this a
           // real occurrence, not just a theoretical race. This flag persists
@@ -310,7 +349,7 @@ Game.core = (function() {
         }
       }
     });
-  });
+  }
 
   return {
     pickWeightedTier,

@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <title>State Ball Merge</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+  <!-- poly-decomp: lets Matter.js decompose concave bodies (the star shape) into
+       convex parts. Without it, Bodies.fromVertices silently falls back to a
+       convex hull and the star's points/notches would collapse into a decagon. -->
+  <script src="https://cdn.jsdelivr.net/npm/poly-decomp@0.3.0/build/decomp.min.js"></script>
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>

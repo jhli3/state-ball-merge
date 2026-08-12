@@ -25,7 +25,7 @@ Game.state = {
   currentScore: 0,
   highScore: 0,
 
-  // 'sphere' | 'hexagon' — read by physics.js when spawning a body and by
-  // render.js when drawing one, so the two stay in sync.
+  // 'sphere' | 'hexagon' | 'star' — read by physics.js when spawning a body
+  // and by render.js when drawing one, so the two stay in sync.
   marbleShape: 'sphere'
 };

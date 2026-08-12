@@ -7,16 +7,20 @@ Game.render = (function() {
   // spawnMarble() creates an actual hexagon collision body in "hexagon" mode,
   // not just a hexagon-shaped drawing over a circular one.
   const SHAPE_STORAGE_KEY = 'smm-marble-shape';
-  Game.state.marbleShape = localStorage.getItem(SHAPE_STORAGE_KEY) === 'hexagon' ? 'hexagon' : 'sphere';
+  const SHAPES = ['sphere', 'hexagon', 'star'];
+  const SHAPE_LABELS = { sphere: '🔵 Shape: Marble', hexagon: '⬡ Shape: Hexagon', star: '⭐ Shape: Star' };
+  const savedShape = localStorage.getItem(SHAPE_STORAGE_KEY);
+  Game.state.marbleShape = SHAPES.includes(savedShape) ? savedShape : 'sphere';
 
   const shapeToggleBtn = document.getElementById('shape-toggle');
 
   function updateShapeToggleLabel() {
-    shapeToggleBtn.textContent = Game.state.marbleShape === 'hexagon' ? '⬡ Shape: Hexagon' : '🔵 Shape: Marble';
+    shapeToggleBtn.textContent = SHAPE_LABELS[Game.state.marbleShape];
   }
 
   shapeToggleBtn.addEventListener('click', () => {
-    Game.state.marbleShape = Game.state.marbleShape === 'hexagon' ? 'sphere' : 'hexagon';
+    const nextIndex = (SHAPES.indexOf(Game.state.marbleShape) + 1) % SHAPES.length;
+    Game.state.marbleShape = SHAPES[nextIndex];
     try { localStorage.setItem(SHAPE_STORAGE_KEY, Game.state.marbleShape); } catch (e) { /* ignore */ }
     updateShapeToggleLabel();
     // Matter.js bodies can't change shape in place — rebuild every marble
@@ -46,6 +50,15 @@ Game.render = (function() {
         const y = radius * Math.sin(angle);
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
+      ctx.closePath();
+    } else if (Game.state.marbleShape === 'star') {
+      // Same vertex list physics.js builds the collision body from — see
+      // Game.physics.starVertices for why this is shared rather than
+      // re-derived here the way the hexagon's simpler angle formula is.
+      const points = Game.physics.starVertices(radius);
+      points.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      });
       ctx.closePath();
     } else {
       ctx.arc(0, 0, radius, 0, Math.PI * 2);

@@ -86,6 +86,63 @@ Game.physics = (function() {
     return points;
   }
 
+  // A 5-pointed rounded star: a genuinely concave outline (tip, notch, tip,
+  // notch...), not a convex approximation of one. That concavity is the whole
+  // point — it's what gives a star its actual physical behavior: points can
+  // wedge into neighboring marbles' notches, its moment of inertia is lower
+  // than a disc of the same radius (mass sits closer to center between the
+  // points), and it can rock unevenly instead of rolling smoothly. Matter.js
+  // needs the poly-decomp library (loaded in index.html) to turn a concave
+  // vertex list into simulatable convex parts — without it, Bodies.fromVertices
+  // silently falls back to a convex hull and all of the above is lost; the
+  // "star" would collide exactly like a decagon.
+  //
+  // Corners are rounded by replacing each sharp vertex with a short
+  // quadratic-bezier arc (control point = the original vertex), the same
+  // trick used for rounded-corner polygons/icons. That works identically for
+  // the outward tips and the inward notches, so both come out smoothed.
+  // Angle 0 starts a tip, same straddle-the-bottom convention as
+  // hexagonVertices, so the star rests on a flat-ish rounded edge rather than
+  // balancing on a point.
+  const STAR_POINTS = 5;
+  const STAR_INNER_RATIO = 0.5;
+  const STAR_CORNER_CUT = 0.28;
+  const STAR_CORNER_SEGMENTS = 4;
+
+  function roundPolygonCorners(points, cut, segments) {
+    const n = points.length;
+    const rounded = [];
+    for (let i = 0; i < n; i++) {
+      const prev = points[(i - 1 + n) % n];
+      const cur = points[i];
+      const next = points[(i + 1) % n];
+
+      const a = { x: cur.x + (prev.x - cur.x) * cut, y: cur.y + (prev.y - cur.y) * cut };
+      const b = { x: cur.x + (next.x - cur.x) * cut, y: cur.y + (next.y - cur.y) * cut };
+
+      for (let s = 0; s <= segments; s++) {
+        const u = s / segments;
+        const inv = 1 - u;
+        rounded.push({
+          x: inv * inv * a.x + 2 * inv * u * cur.x + u * u * b.x,
+          y: inv * inv * a.y + 2 * inv * u * cur.y + u * u * b.y
+        });
+      }
+    }
+    return rounded;
+  }
+
+  function starVertices(radius) {
+    const raw = [];
+    const step = Math.PI / STAR_POINTS;
+    for (let i = 0; i < STAR_POINTS * 2; i++) {
+      const angle = step * i;
+      const r = (i % 2 === 0) ? radius : radius * STAR_INNER_RATIO;
+      raw.push({ x: r * Math.cos(angle), y: r * Math.sin(angle) });
+    }
+    return roundPolygonCorners(raw, STAR_CORNER_CUT, STAR_CORNER_SEGMENTS);
+  }
+
   function spawnMarble(x, y, tierIndex, megaScale = 1) {
     const tier = Game.state.TIERS[tierIndex];
     const radius = tier.radius * megaScale;
@@ -97,22 +154,30 @@ Game.physics = (function() {
     };
 
     const isHexagon = Game.state.marbleShape === 'hexagon';
+    const isStar = Game.state.marbleShape === 'star';
     const body = isHexagon
       ? Bodies.fromVertices(x, y, [hexagonVertices(radius)], bodyOptions)
+      : isStar
+      ? Bodies.fromVertices(x, y, [starVertices(radius)], bodyOptions)
       : Bodies.circle(x, y, radius, bodyOptions);
 
-    if (isHexagon) {
-      // A hexagon dropped dead-center with zero spin onto a flat surface is
-      // in a perfectly symmetric, torque-free state — nothing in the sim
-      // will ever break that tie, so without this nudge it really can end
-      // up sitting flush on a corner forever. Real objects never fall with
-      // exactly zero spin; this just restores that small imperfection so it
-      // reliably tips and settles onto a side instead.
+    if (isHexagon || isStar) {
+      // A symmetric shape dropped dead-center with zero spin onto a flat
+      // surface is in a perfectly symmetric, torque-free state — nothing in
+      // the sim will ever break that tie, so without this nudge it really
+      // can end up sitting flush on a corner (or a star's point) forever.
+      // Real objects never fall with exactly zero spin; this just restores
+      // that small imperfection so it reliably tips and settles onto a side
+      // instead.
       Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.06);
     }
 
     body.gameTier = tierIndex;
     body.megaScale = megaScale;
+    // Matter's own simulation clock rather than wall-clock time, so the merge
+    // grace period (game.js) tracks simulated elapsed time consistently even
+    // across frame-rate hiccups instead of drifting from real time.
+    body.spawnTime = engine.timing.timestamp;
     return body;
   }
 
@@ -156,6 +221,12 @@ Game.physics = (function() {
   return {
     WIDTH, HEIGHT, engine, render, containerEl,
     MEGA_GROWTH, MAX_MEGA_SCALE,
-    clampAimX, spawnMarble, rebuildBodies, isDropZoneClear
+    clampAimX, spawnMarble, rebuildBodies, isDropZoneClear,
+    // Exported (unlike hexagonVertices, which render.js re-derives by hand)
+    // because the corner-rounding math is nontrivial enough that keeping two
+    // independent copies in sync isn't worth it — render.js's tracePath()
+    // calls this directly so the drawn outline is always the exact collision
+    // shape, point for point.
+    starVertices
   };
 })();
