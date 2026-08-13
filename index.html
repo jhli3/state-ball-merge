@@ -28,7 +28,7 @@
       <div class="controls-row">
         <button id="shake-btn" class="shake-btn">✨ Shake Container</button>
         <button id="restart-btn" class="restart-btn">🔄 Restart</button>
-        <button id="howto-btn" class="restart-btn">❓ How to Play</button>
+        <button id="settings-btn" class="restart-btn">⚙️ Settings</button>
       </div>
     </div>
   </div>
@@ -48,10 +48,22 @@
       <div id="next-flag" class="next-flag-preview"></div>
       <span id="next-name" class="next-state-name">Rhode Island</span>
     </div>
-    <button id="audio-toggle" class="audio-toggle-btn">🎵 Ambient: Off</button>
-    <button id="shape-toggle" class="audio-toggle-btn">🔵 Shape: Marble</button>
-    <button id="mode-toggle" class="audio-toggle-btn">📦 Mode: Container</button>
-    <button id="customize-btn" class="audio-toggle-btn">⚙️ Choose States</button>
+  </div>
+</div>
+
+<div id="settings-modal-backdrop" class="modal-backdrop">
+  <div class="modal-box settings-box">
+    <div class="modal-header">
+      <span class="modal-title">Settings</span>
+      <button id="settings-close-btn" class="modal-close-btn">✕</button>
+    </div>
+    <div class="settings-list">
+      <button id="howto-btn" class="audio-toggle-btn">❓ How to Play</button>
+      <button id="audio-toggle" class="audio-toggle-btn">🎵 Ambient: Off</button>
+      <button id="shape-toggle" class="audio-toggle-btn">🔵 Shape: Marble</button>
+      <button id="mode-toggle" class="audio-toggle-btn">📦 Mode: Classic</button>
+      <button id="customize-btn" class="audio-toggle-btn">⚙️ Choose States</button>
+    </div>
   </div>
 </div>
 
@@ -108,7 +120,7 @@
       </div>
       <div class="howto-row">
         <span class="howto-action">Drop / Place</span>
-        <span class="howto-controls">Click · Shift · B <span class="howto-note">(hold any to stream; places freely in Space mode)</span></span>
+        <span class="howto-controls">Click · Shift · A <span class="howto-note">(hold any to stream; places freely in Space mode)</span></span>
       </div>
       <div class="howto-row">
         <span class="howto-action">Shake</span>
@@ -119,8 +131,16 @@
         <span class="howto-controls">R · +</span>
       </div>
       <div class="howto-row">
+        <span class="howto-action">Settings</span>
+        <span class="howto-controls">Click · -</span>
+      </div>
+      <div class="howto-row">
+        <span class="howto-action">Delete Smallest</span>
+        <span class="howto-controls">D-Pad Left <span class="howto-note">(sweeps the smallest tier on the board)</span></span>
+      </div>
+      <div class="howto-row">
         <span class="howto-action">Navigate Menu</span>
-        <span class="howto-controls">Tab · D-Pad ↑↓ · Left Stick</span>
+        <span class="howto-controls">Tab · D-Pad · Left Stick <span class="howto-note">(inside Settings/state picker only)</span></span>
       </div>
       <div class="howto-row">
         <span class="howto-action">Select</span>
@@ -131,7 +151,7 @@
         <span class="howto-controls">Esc · B</span>
       </div>
     </div>
-    <div class="howto-footnote">Merge two of the same state to grow it into the next one up. Every on-screen button — shake, restart, shape, audio, and the state picker — is reachable with the controller too: D-Pad/stick to move the highlight, A to select, B to back out. 🎮 Works with a Switch Pro Controller or paired Joy-Cons over Bluetooth or USB. Toggle 🪐 Mode: Space to place marbles anywhere in the box instead of dropping them from the top — every marble pulls gently on every other one (harder the closer their sizes are) and everything drifts slowly back toward center, so the board naturally clusters and re-centers itself. Space mode is round-marble only.</div>
+    <div class="howto-footnote">Merge two of the same state to grow it into the next one up. How to Play, Ambient, Shape, Mode, and the state picker now live behind the ⚙️ Settings button, toggled open and closed with a click or the - button, so the left stick stays completely dedicated to aiming and Shake/Restart/Settings only fire from their own buttons (Y/+/-) — never from D-Pad/stick navigation. 🎮 D-Pad and the stick switch to moving the highlight (A to select, B to back out) only once you're inside Settings or the state picker. Works with a Switch Pro Controller or paired Joy-Cons over Bluetooth or USB. Toggle 🪐 Mode: Space to place marbles anywhere in the box instead of dropping them from the top — every marble pulls gently on every other one (harder the closer their sizes are) and everything drifts slowly back toward center, so the board naturally clusters and re-centers itself. Space mode is round-marble only.</div>
   </div>
 </div>
 

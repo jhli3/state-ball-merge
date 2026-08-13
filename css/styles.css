@@ -613,6 +613,16 @@ canvas {
   width: min(360px, 90vw);
 }
 
+.settings-box {
+  width: min(320px, 90vw);
+}
+
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .howto-list {
   display: flex;
   flex-direction: column;

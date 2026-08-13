@@ -5,8 +5,10 @@
 Game.physics = (function() {
   const { Engine, Render, Bodies, Composite, Events, Body, Vector } = Matter;
 
-  const WIDTH = 900;
-  const HEIGHT = 720;
+  // Computed by config.js (which loads first) from the available viewport —
+  // see the comment there for why and how it's clamped.
+  const WIDTH = Game.config.WIDTH;
+  const HEIGHT = Game.config.HEIGHT;
 
   const GRAVITY_Y = 0.65;
 
@@ -42,7 +44,7 @@ Game.physics = (function() {
   Composite.add(engine.world, [ground, ceiling, leftWall, rightWall]);
 
   // Space mode has no gravity to pull a stray marble back down, so the far-off
-  // ceiling above (which is what lets container mode's shake give a marble a
+  // ceiling above (which is what lets classic mode's shake give a marble a
   // fun little peek above the frame) would otherwise let it drift up past
   // y=0 and sit there forever, invisible and unreachable by the same-tier
   // attraction. This wall sits flush with the actual visible top edge
@@ -50,7 +52,7 @@ Game.physics = (function() {
   // setPhysicsMode below.
   const spaceCeiling = Bodies.rectangle(WIDTH / 2, -30, WIDTH * 2, 60, wallOpts);
 
-  // Container mode falls under normal downward gravity with the far ceiling
+  // Classic mode falls under normal downward gravity with the far ceiling
   // above; space mode floats (zero gravity), relies on the same-tier
   // attraction below instead of gravity, and swaps in the flush ceiling so
   // nothing can drift out of the visible box. render.js's mode toggle calls
@@ -63,8 +65,13 @@ Game.physics = (function() {
 
   // Once the largest state is reached, merging two of them no longer upgrades
   // to a new tier — instead it grows into a bigger version of the same state,
-  // up to a cap so it never outgrows the container.
-  const MEGA_GROWTH = 1.12;
+  // up to a cap so it never outgrows the container. This is intentionally the
+  // one place size is still allowed to ramp up a lot — it's the "you've maxed
+  // out the board" reward, separate from the regular tier-to-tier climb
+  // (config.js), which is what actually needed to be gentler. MEGA_GROWTH
+  // stays slow (1.05x per merge, ~19 merges to hit the cap) so it's still a
+  // grind to get there, not a jump.
+  const MEGA_GROWTH = 1.05;
   const MAX_MEGA_SCALE = 2.5;
 
   // Belt-and-suspenders: cap top speed so a stacked-up shake force can't send a
@@ -104,7 +111,7 @@ Game.physics = (function() {
 
   // Space-mode-only centering: a gentle, ever-present pull toward the middle
   // of the canvas, independent of size or distance. Its job is to undo
-  // whatever container mode's gravity left behind — a pile at the bottom —
+  // whatever classic mode's gravity left behind — a pile at the bottom —
   // so switching modes mid-game isn't a dead stop; everything gradually
   // drifts back toward center on its own.
   const CENTER_PULL_ACCEL = 0.0004;

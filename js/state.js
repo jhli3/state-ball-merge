@@ -30,9 +30,9 @@ Game.state = {
   // and by render.js when drawing one, so the two stay in sync.
   marbleShape: 'sphere',
 
-  // 'container' | 'space' — read by physics.js (gravity/attraction/walls),
+  // 'classic' | 'space' — read by physics.js (gravity/attraction/walls),
   // input.js (drop-at-a-fixed-chute vs. place-anywhere) and render.js (which
   // aim preview to draw). Space mode is sphere-only; see render.js's mode
   // toggle for the forced-shape rule.
-  marbleMode: 'container'
+  marbleMode: 'classic'
 };

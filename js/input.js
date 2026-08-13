@@ -10,7 +10,7 @@ Game.input = (function() {
     };
   }
 
-  // Container mode only needs the X half of this (aimY sits unused at
+  // Classic mode only needs the X half of this (aimY sits unused at
   // whatever default it started at) — space mode places freely, so it
   // tracks the full pointer position.
   render.canvas.addEventListener('mousemove', (e) => {
@@ -20,7 +20,7 @@ Game.input = (function() {
     Game.state.aimY = Game.physics.clampAimY(pos.y, radius);
   });
 
-  // Container mode drops from the fixed top chute; space mode places the
+  // Classic mode drops from the fixed top chute; space mode places the
   // marble at rest wherever aimX/aimY currently point, and lets the
   // attraction/center-pull forces (physics.js) carry it from there — no
   // velocity involved. Every input path below (click, hold-to-stream, Shift,
@@ -95,6 +95,7 @@ Game.input = (function() {
         Game.ui.closeStateModal();
         Game.ui.closeSuccessScreen();
         Game.ui.closeHowToModal();
+        Game.ui.closeSettingsModal();
       }
       return;
     }
@@ -118,7 +119,7 @@ Game.input = (function() {
       Game.state.aimX = Game.physics.clampAimX(Game.state.aimX + step, radius);
     } else if (e.key === 'ArrowUp') {
       // Only meaningful in space mode's free 2D placement — harmless no-op
-      // effect in container mode, where aimY isn't read for anything.
+      // effect in classic mode, where aimY isn't read for anything.
       Game.state.aimY = Game.physics.clampAimY(Game.state.aimY - step, radius);
     } else if (e.key === 'ArrowDown') {
       Game.state.aimY = Game.physics.clampAimY(Game.state.aimY + step, radius);
@@ -153,10 +154,13 @@ Game.input = (function() {
   const FOCUSABLE_SELECTOR = 'button:not(:disabled), [tabindex="0"]';
   let gamepadFocusEl = null;
 
+  // Shake/Restart/Settings on the main screen are reachable only through
+  // their own dedicated gamepad buttons (Y/+/-), never through D-pad/stick
+  // focus navigation — so there's nothing to focus outside a modal, and the
+  // stick stays exclusively dedicated to aiming.
   function getFocusRoots() {
     const openModal = document.querySelector('.modal-backdrop.open');
-    if (openModal) return [openModal];
-    return [document.querySelector('.controls'), document.querySelector('.side-panel')];
+    return openModal ? [openModal] : [];
   }
 
   function getFocusableEls() {
@@ -240,6 +244,15 @@ Game.input = (function() {
     Game.ui.closeStateModal();
     Game.ui.closeSuccessScreen();
     Game.ui.closeHowToModal();
+    Game.ui.closeSettingsModal();
+  }
+
+  // Settings-specific (rather than the shared Game.state.isModalOpen flag)
+  // so the "-" button below can tell whether it's toggling Settings itself
+  // shut, versus opening it fresh from the main screen.
+  function isSettingsOpen() {
+    const el = document.getElementById('settings-modal-backdrop');
+    return !!el && el.classList.contains('open');
   }
 
   // --- Gamepad support (Switch Pro Controller / paired Joy-Cons) ---
@@ -297,34 +310,35 @@ Game.input = (function() {
 
     const modalOpen = Game.state.isModalOpen;
 
-    // A modal grabs focus as soon as it's open (however it was opened) so
-    // there's always something highlighted to act on, instead of requiring
-    // a direction press first.
-    if (modalOpen && (!gamepadFocusEl || !getFocusableEls().includes(gamepadFocusEl))) {
-      const els = getFocusableEls();
-      if (els.length) setGamepadFocus(els[0]);
-    }
+    if (!modalOpen) {
+      // Nothing to focus on the main screen — Shake/Restart/Settings are
+      // reachable only via their own buttons (Y/+/-) below, never via
+      // D-pad/stick navigation, so the stick stays exclusively dedicated to
+      // aiming. This also drops any focus left over from a modal that closed
+      // through a path that didn't clear it (e.g. a mouse click elsewhere).
+      if (gamepadFocusEl) clearGamepadFocus();
+    } else {
+      // A modal grabs focus as soon as it's open (however it was opened) so
+      // there's always something highlighted to act on, instead of requiring
+      // a direction press first.
+      if (!gamepadFocusEl || !getFocusableEls().includes(gamepadFocusEl)) {
+        const els = getFocusableEls();
+        if (els.length) setGamepadFocus(els[0]);
+      }
 
-    // D-pad up/down and the left stick's Y-axis always drive menu focus —
-    // they're otherwise unused during aim, so this is free real estate and
-    // lets a controller reach every button a mouse could click.
-    if (justPressed(12)) moveGamepadFocus('up');
-    if (justPressed(13)) moveGamepadFocus('down');
-
-    const stickDirY = axisToDir(pad.axes[1] || 0);
-    if (stickDirY !== stickFocusDirY) {
-      if (stickDirY === -1) moveGamepadFocus('up');
-      if (stickDirY === 1) moveGamepadFocus('down');
-      stickFocusDirY = stickDirY;
-    }
-
-    // Left/right only drive menu focus once something's already focused (or
-    // a modal is open) — otherwise D-pad left/right and the stick's X-axis
-    // stay dedicated to aiming, as before.
-    const menuActive = modalOpen || !!gamepadFocusEl;
-    if (menuActive) {
+      // D-pad and the left stick drive menu focus only while a modal is
+      // open — this is the sole role the stick plays outside of aiming.
+      if (justPressed(12)) moveGamepadFocus('up');
+      if (justPressed(13)) moveGamepadFocus('down');
       if (justPressed(14)) moveGamepadFocus('left');
       if (justPressed(15)) moveGamepadFocus('right');
+
+      const stickDirY = axisToDir(pad.axes[1] || 0);
+      if (stickDirY !== stickFocusDirY) {
+        if (stickDirY === -1) moveGamepadFocus('up');
+        if (stickDirY === 1) moveGamepadFocus('down');
+        stickFocusDirY = stickDirY;
+      }
 
       const stickDirX = axisToDir(pad.axes[0] || 0);
       if (stickDirX !== stickFocusDirX) {
@@ -332,8 +346,6 @@ Game.input = (function() {
         if (stickDirX === 1) moveGamepadFocus('right');
         stickFocusDirX = stickDirX;
       }
-    } else {
-      stickFocusDirX = axisToDir(pad.axes[0] || 0);
     }
 
     // A: activate the focused control if there is one, otherwise fire (held
@@ -350,23 +362,39 @@ Game.input = (function() {
       else if (gamepadFocusEl) clearGamepadFocus();
     }
 
-    if (!modalOpen && !gamepadFocusEl) {
-      // Aim: left stick X-axis (analog) plus D-pad left/right (digital step).
-      // Works the same in both modes — space mode's launch line slides with
-      // aimX exactly like the container chute does.
+    // -: toggle Settings — opens it from the main screen, or closes it back
+    // out if it's the modal currently open. Leaves How to Play/Choose States
+    // alone if one of those is open instead (B backs out of those, as usual).
+    if (justPressed(8)) {
+      if (isSettingsOpen()) { Game.ui.closeSettingsModal(); clearGamepadFocus(); }
+      else if (!modalOpen) Game.ui.openSettingsModal();
+    }
+
+    if (!modalOpen) {
+      // Aim: left stick only. X-axis steers left/right in both modes;
+      // Y-axis additionally steers up/down in space mode's free 2D
+      // placement (a harmless no-op in classic mode, where aimY isn't
+      // read for anything) — same split the mouse and arrow keys use.
       const radius = Game.state.TIERS[Game.state.currentTier].radius;
       const stickX = pad.axes[0] || 0;
       if (Math.abs(stickX) > GAMEPAD_STICK_DEADZONE) {
         Game.state.aimX = Game.physics.clampAimX(Game.state.aimX + stickX * GAMEPAD_AIM_SPEED, radius);
       }
-      if (isPressed(14)) Game.state.aimX = Game.physics.clampAimX(Game.state.aimX - GAMEPAD_AIM_SPEED, radius); // D-pad left
-      if (isPressed(15)) Game.state.aimX = Game.physics.clampAimX(Game.state.aimX + GAMEPAD_AIM_SPEED, radius); // D-pad right
+      const stickY = pad.axes[1] || 0;
+      if (Math.abs(stickY) > GAMEPAD_STICK_DEADZONE) {
+        Game.state.aimY = Game.physics.clampAimY(Game.state.aimY + stickY * GAMEPAD_AIM_SPEED, radius);
+      }
 
-      // Shake: X button (standard mapping button 3)
-      if (justPressed(3)) Game.core.triggerShake();
+      // Shake: Y button (standard mapping button 2)
+      if (justPressed(2)) Game.core.triggerShake();
 
       // Restart: + / Start button (standard mapping button 9)
       if (justPressed(9)) Game.core.restartGame();
+
+      // D-pad left: sweep the smallest tier currently on the board — a
+      // quick way to clear clutter. D-pad left/right have no other job
+      // while aiming (the stick handles that), so this is free real estate.
+      if (justPressed(14)) Game.core.deleteSmallestMarbles();
     }
 
     gamepadPrevButtons = pad.buttons.map(b => b.pressed);

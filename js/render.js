@@ -30,16 +30,16 @@ Game.render = (function() {
 
   updateShapeToggleLabel();
 
-  // --- Marble mode preference (container-with-gravity vs. floating space) ---
+  // --- Marble mode preference (classic gravity-and-container vs. floating space) ---
   // Space mode only makes physical sense for the round marble (attraction +
   // zero-g read as "planets", not as a hexagon or star), so switching into it
   // forces the shape to sphere and locks the shape toggle until switching
   // back out.
   const MODE_STORAGE_KEY = 'smm-marble-mode';
-  const MODES = ['container', 'space'];
-  const MODE_LABELS = { container: '📦 Mode: Container', space: '🪐 Mode: Space' };
+  const MODES = ['classic', 'space'];
+  const MODE_LABELS = { classic: '📦 Mode: Classic', space: '🪐 Mode: Space' };
   const savedMode = localStorage.getItem(MODE_STORAGE_KEY);
-  Game.state.marbleMode = MODES.includes(savedMode) ? savedMode : 'container';
+  Game.state.marbleMode = MODES.includes(savedMode) ? savedMode : 'classic';
 
   const modeToggleBtn = document.getElementById('mode-toggle');
 
@@ -132,19 +132,46 @@ Game.render = (function() {
     ctx.stroke();
   }
 
+  // Tight bounding box of the current marble shape at a given radius. The
+  // hexagon and (especially) the star occupy noticeably less of their own
+  // radius*2 circumscribing square than a circle does — a hexagon's flat
+  // top/bottom sit at ~87% of that square's height, and the star's points
+  // reach it in only 5 narrow directions — so cover-fitting the flag image
+  // against the full square (as if every shape were a circle) left most of
+  // the flag clipped away outside the visible hexagon/star outline. Sizing
+  // against the shape's actual footprint instead shows much more of it.
+  function shapeBounds(radius) {
+    if (Game.state.marbleShape === 'hexagon') {
+      // Vertices at 0°,60°,...,300° (see tracePath): spans the full 2*radius
+      // width at 0°/180°, but only radius*sqrt(3) of height at the rest.
+      return { width: radius * 2, height: radius * Math.sqrt(3) };
+    }
+    if (Game.state.marbleShape === 'star') {
+      const points = Game.physics.starVertices(radius);
+      const xs = points.map(p => p.x);
+      const ys = points.map(p => p.y);
+      return { width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+    }
+    return { width: radius * 2, height: radius * 2 };
+  }
+
   function drawMarbleImage(ctx, tier, radius) {
     if (tier.imgObj.complete && tier.imgObj.naturalWidth !== 0) {
       tracePath(ctx, radius);
       ctx.clip();
 
-      // Cover fill cropping logic for aspect ratio fitting
+      // Cover-fill the shape's own bounding box (not the full circumscribing
+      // square) so hexagon/star show as much of the flag as the circle does.
+      const { width: boxW, height: boxH } = shapeBounds(radius);
       const aspect = tier.imgObj.naturalWidth / tier.imgObj.naturalHeight;
-      let drawW = radius * 2;
-      let drawH = radius * 2;
-      if (aspect > 1) {
-        drawW = radius * 2 * aspect;
+      let drawW = boxW;
+      let drawH = boxH;
+      if (aspect > boxW / boxH) {
+        drawH = boxH;
+        drawW = boxH * aspect;
       } else {
-        drawH = (radius * 2) / aspect;
+        drawW = boxW;
+        drawH = boxW / aspect;
       }
 
       ctx.drawImage(tier.imgObj, -drawW / 2, -drawH / 2, drawW, drawH);
@@ -160,7 +187,7 @@ Game.render = (function() {
     const ctx = render.context;
 
     if (!Game.state.isCooldown) {
-      // 1. Ghost Marble — container mode drops straight down from a fixed
+      // 1. Ghost Marble — classic mode drops straight down from a fixed
       // top chute (aimX slides, Y is fixed, so a vertical dashed lane shows
       // the drop path); space mode places freely wherever aimX/aimY point,
       // so the ghost just follows the cursor with no lane to draw.

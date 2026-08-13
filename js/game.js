@@ -79,6 +79,8 @@ Game.core = (function() {
 
       const state = {
         version: 1,
+        canvasWidth: Game.physics.WIDTH,
+        canvasHeight: Game.physics.HEIGHT,
         stateNames: Game.state.TIERS.map(t => t.name),
         marbles,
         unlocked: [...Game.state.unlockedSet],
@@ -111,10 +113,17 @@ Game.core = (function() {
       const validUnlocked = (state.unlocked || []).filter(i => Number.isInteger(i) && i >= 0 && i < Game.state.TIERS.length);
       Game.state.unlockedSet = new Set(validUnlocked.length ? validUnlocked : [0]);
 
+      // The canvas is sized from the viewport at load (see config.js), so a
+      // save from a different-sized screen/window needs its marble
+      // positions rescaled to the current box — otherwise a pile saved on a
+      // big monitor could restore outside a smaller one's walls.
+      const scaleX = state.canvasWidth ? Game.physics.WIDTH / state.canvasWidth : 1;
+      const scaleY = state.canvasHeight ? Game.physics.HEIGHT / state.canvasHeight : 1;
+
       Composite.clear(engine.world, true);
       (state.marbles || []).forEach(m => {
         if (!Number.isInteger(m.tier) || m.tier < 0 || m.tier >= Game.state.TIERS.length) return;
-        const body = Game.physics.spawnMarble(m.x, m.y, m.tier, m.scale || 1);
+        const body = Game.physics.spawnMarble(m.x * scaleX, m.y * scaleY, m.tier, m.scale || 1);
         Body.setVelocity(body, { x: m.vx || 0, y: m.vy || 0 });
         Body.setAngle(body, m.angle || 0);
         Composite.add(engine.world, body);
@@ -215,6 +224,18 @@ Game.core = (function() {
     saveGameState();
   }
 
+  // Sweeps every marble at the smallest tier currently on the board — bound
+  // to the gamepad's D-pad left (input.js) as a quick way to clear clutter
+  // without hunting for the right state in the sidebar. Reuses chart.js's
+  // clearStateFromBoard so the removal/pop-sound/save behavior is identical
+  // to clicking that state there.
+  function deleteSmallestMarbles() {
+    const bodies = Composite.allBodies(engine.world).filter(b => b.gameTier !== undefined);
+    if (bodies.length === 0) return;
+    const smallestTier = Math.min(...bodies.map(b => b.gameTier));
+    Game.chart.clearStateFromBoard(smallestTier);
+  }
+
   let isShakeCooldown = false;
   const SHAKE_COOLDOWN = 260;
 
@@ -253,6 +274,7 @@ Game.core = (function() {
     Game.ui.closeStateModal();
     Game.ui.closeSuccessScreen();
     Game.ui.closeHowToModal();
+    Game.ui.closeSettingsModal();
     resetGame(Game.config.MASTER_STATE_NAMES.filter(name => Game.state.selectedStateNames.has(name)));
   }
 
@@ -393,6 +415,7 @@ Game.core = (function() {
     dropMarble,
     placeMarble,
     triggerShake,
-    restartGame
+    restartGame,
+    deleteSmallestMarbles
   };
 })();

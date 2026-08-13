@@ -89,6 +89,7 @@ Game.ui = (function() {
   window.addEventListener('mouseup', () => { isDragSelecting = false; });
 
   function openStateModal() {
+    closeSettingsModal();
     Game.input.cancelHold();
     pendingSelection = new Set(Game.state.selectedStateNames);
     buildStateModalGrid();
@@ -177,6 +178,7 @@ Game.ui = (function() {
   const howtoBackdrop = document.getElementById('howto-modal-backdrop');
 
   function openHowToModal() {
+    closeSettingsModal();
     Game.input.cancelHold();
     howtoBackdrop.classList.add('open');
     Game.state.isModalOpen = true;
@@ -194,6 +196,27 @@ Game.ui = (function() {
     if (e.target === howtoBackdrop) closeHowToModal();
   });
 
+  // --- Settings Modal (hub for How to Play, Ambient, Shape, Mode, Choose States) ---
+  const settingsBackdrop = document.getElementById('settings-modal-backdrop');
+
+  function openSettingsModal() {
+    Game.input.cancelHold();
+    settingsBackdrop.classList.add('open');
+    Game.state.isModalOpen = true;
+  }
+
+  function closeSettingsModal() {
+    settingsBackdrop.classList.remove('open');
+    Game.state.isModalOpen = false;
+  }
+
+  document.getElementById('settings-btn').addEventListener('click', openSettingsModal);
+  document.getElementById('settings-close-btn').addEventListener('click', closeSettingsModal);
+
+  settingsBackdrop.addEventListener('click', (e) => {
+    if (e.target === settingsBackdrop) closeSettingsModal();
+  });
+
   return {
     fitToViewport,
     openStateModal,
@@ -201,6 +224,8 @@ Game.ui = (function() {
     showSuccessScreen,
     closeSuccessScreen,
     openHowToModal,
-    closeHowToModal
+    closeHowToModal,
+    openSettingsModal,
+    closeSettingsModal
   };
 })();
