@@ -7,8 +7,8 @@ Game.render = (function() {
   // spawnMarble() creates an actual hexagon collision body in "hexagon" mode,
   // not just a hexagon-shaped drawing over a circular one.
   const SHAPE_STORAGE_KEY = 'smm-marble-shape';
-  const SHAPES = ['sphere', 'hexagon', 'star'];
-  const SHAPE_LABELS = { sphere: '🔵 Shape: Marble', hexagon: '⬡ Shape: Hexagon', star: '⭐ Shape: Star' };
+  const SHAPES = ['sphere', 'hexagon', 'star', 'state'];
+  const SHAPE_LABELS = { sphere: '🔵 Shape: Marble', hexagon: '⬡ Shape: Hexagon', star: '⭐ Shape: Star', state: '🗺️ Shape: State' };
   const savedShape = localStorage.getItem(SHAPE_STORAGE_KEY);
   Game.state.marbleShape = SHAPES.includes(savedShape) ? savedShape : 'sphere';
 
@@ -32,9 +32,9 @@ Game.render = (function() {
 
   // --- Marble mode preference (classic gravity-and-container vs. floating space) ---
   // Space mode only makes physical sense for the round marble (attraction +
-  // zero-g read as "planets", not as a hexagon or star), so switching into it
-  // forces the shape to sphere and locks the shape toggle until switching
-  // back out.
+  // zero-g read as "planets", not as a hexagon, star, or state outline), so
+  // switching into it forces the shape to sphere and locks the shape toggle
+  // until switching back out.
   const MODE_STORAGE_KEY = 'smm-marble-mode';
   const MODES = ['classic', 'space'];
   const MODE_LABELS = { classic: '📦 Mode: Classic', space: '🪐 Mode: Space' };
@@ -71,16 +71,18 @@ Game.render = (function() {
 
   // Traces the current marble shape as a path centered on the origin, ready
   // for clip/fill/stroke — a circle in "sphere" mode, a flat-bottomed
-  // hexagon in "hexagon" mode. Every place that used to draw a bare circle
-  // goes through this so the aim ghost, dropped marbles, and the mega-merge
-  // ring all switch shape together.
+  // hexagon in "hexagon" mode, or (in "state" mode) the actual outline of
+  // the given state name. Every place that used to draw a bare circle goes
+  // through this so the aim ghost, dropped marbles, and the mega-merge ring
+  // all switch shape together. `name` is only read in "state" mode — every
+  // other shape ignores it, so callers that never use state mode can omit it.
   //
   // Vertex angles start at 0° (not -90°) so the resting/unrotated shape has
   // a flat EDGE at the bottom (angles 0,60,...,300 straddle 90°/270° rather
   // than landing on them) instead of a single point — a hexagon shouldn't be
   // able to balance on its corner. physics.js's hexagon vertices use this
   // exact same formula so the collision shape always matches what's drawn.
-  function tracePath(ctx, radius) {
+  function tracePath(ctx, radius, name) {
     ctx.beginPath();
     if (Game.state.marbleShape === 'hexagon') {
       for (let i = 0; i < 6; i++) {
@@ -99,6 +101,19 @@ Game.render = (function() {
         if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
       });
       ctx.closePath();
+    } else if (Game.state.marbleShape === 'state') {
+      // Same per-state point list physics.js builds the collision body from
+      // (see Game.physics.stateVertices) — falls back to a circle if a name
+      // is somehow missing from state-shapes.js.
+      const points = Game.physics.stateVertices(name, radius);
+      if (points) {
+        points.forEach((p, i) => {
+          if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+        });
+        ctx.closePath();
+      } else {
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      }
     } else {
       ctx.arc(0, 0, radius, 0, Math.PI * 2);
     }
@@ -106,13 +121,15 @@ Game.render = (function() {
 
   // Glass Sphere Highlight Effect — shared by the aim ghost and dropped
   // marbles so a held marble looks the same as one already on the board,
-  // instead of reading as flat until the moment it's dropped. Hexagon mode
-  // gets a flat treatment instead (just an edge line, no gradient), since
-  // the whole point of that shape is to read as flat, not glossy.
-  function drawGlassHighlight(ctx, radius) {
-    if (Game.state.marbleShape === 'hexagon') {
-      tracePath(ctx, radius);
-      ctx.strokeStyle = 'rgba(15, 23, 42, 0.25)';
+  // instead of reading as flat until the moment it's dropped. Hexagon and
+  // state modes get a flat treatment instead (just an edge line, no
+  // gradient): hexagon because the whole point of that shape is to read as
+  // flat, not glossy, and state because it's a solid-color political-map
+  // silhouette rather than a rendered object with a lit surface.
+  function drawGlassHighlight(ctx, radius, name) {
+    if (Game.state.marbleShape === 'hexagon' || Game.state.marbleShape === 'state') {
+      tracePath(ctx, radius, name);
+      ctx.strokeStyle = 'rgba(31, 58, 77, 0.35)';
       ctx.lineWidth = 2;
       ctx.stroke();
       return;
@@ -156,8 +173,17 @@ Game.render = (function() {
   }
 
   function drawMarbleImage(ctx, tier, radius) {
+    // State mode skips flag art entirely — just the state's own silhouette
+    // filled with its tier color, like a piece on a solid-color map.
+    if (Game.state.marbleShape === 'state') {
+      tracePath(ctx, radius, tier.name);
+      ctx.fillStyle = tier.color;
+      ctx.fill();
+      return;
+    }
+
     if (tier.imgObj.complete && tier.imgObj.naturalWidth !== 0) {
-      tracePath(ctx, radius);
+      tracePath(ctx, radius, tier.name);
       ctx.clip();
 
       const { width: boxW, height: boxH } = shapeBounds(radius);
@@ -216,7 +242,7 @@ Game.render = (function() {
       ctx.drawImage(tier.imgObj, -drawW / 2, -drawH / 2, drawW, drawH);
     } else {
       // Fallback solid fill if image hasn't finished loading
-      tracePath(ctx, radius);
+      tracePath(ctx, radius, tier.name);
       ctx.fillStyle = tier.color;
       ctx.fill();
     }
@@ -242,7 +268,7 @@ Game.render = (function() {
         ctx.setLineDash([6, 6]);
         ctx.moveTo(ghostX, ghostY + radius);
         ctx.lineTo(ghostX, Game.physics.HEIGHT - 20);
-        ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
         ctx.lineWidth = 2;
         ctx.stroke();
         ctx.restore();
@@ -251,14 +277,14 @@ Game.render = (function() {
       ctx.save();
       ctx.translate(ghostX, ghostY);
       drawMarbleImage(ctx, currentData, radius);
-      drawGlassHighlight(ctx, radius);
+      drawGlassHighlight(ctx, radius, currentData.name);
       ctx.restore();
 
       ctx.save();
       ctx.translate(ghostX, ghostY);
-      ctx.strokeStyle = '#3b82f6';
+      ctx.strokeStyle = '#ff6b5b';
       ctx.lineWidth = 2;
-      tracePath(ctx, radius);
+      tracePath(ctx, radius, currentData.name);
       ctx.stroke();
       ctx.restore();
     }
@@ -275,15 +301,15 @@ Game.render = (function() {
         ctx.translate(b.position.x, b.position.y);
         ctx.rotate(b.angle);
 
-        // Draw Flag SVG
+        // Draw Flag SVG (or, in state mode, the state's own solid-color silhouette)
         drawMarbleImage(ctx, tier, radius);
-        drawGlassHighlight(ctx, radius);
+        drawGlassHighlight(ctx, radius, tier.name);
 
         // Extra golden ring for a maxed-out state that's been merged into itself
         if (megaScale > 1) {
-          ctx.strokeStyle = 'rgba(251, 191, 36, 0.85)';
+          ctx.strokeStyle = 'rgba(255, 177, 0, 0.9)';
           ctx.lineWidth = 3;
-          tracePath(ctx, radius - 3);
+          tracePath(ctx, radius - 3, tier.name);
           ctx.stroke();
         }
 

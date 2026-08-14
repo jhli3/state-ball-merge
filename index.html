@@ -3,10 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <title>State Ball Merge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
-  <!-- poly-decomp: lets Matter.js decompose concave bodies (the star shape) into
-       convex parts. Without it, Bodies.fromVertices silently falls back to a
-       convex hull and the star's points/notches would collapse into a decagon. -->
+  <!-- poly-decomp: lets Matter.js decompose concave bodies (the star shape, and
+       the real state-outline shapes in state-shapes.js) into convex parts.
+       Without it, Bodies.fromVertices silently falls back to a convex hull and
+       the star's points/notches — or a state's coastline/panhandle — would
+       collapse into their outline's simple convex hull instead. -->
   <script src="https://cdn.jsdelivr.net/npm/poly-decomp@0.3.0/build/decomp.min.js"></script>
   <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -157,6 +162,7 @@
 
 <script src="js/state.js"></script>
 <script src="js/config.js"></script>
+<script src="js/state-shapes.js"></script>
 <script src="js/scoring.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/physics.js"></script>

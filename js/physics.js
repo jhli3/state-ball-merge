@@ -22,11 +22,11 @@ Game.physics = (function() {
       width: WIDTH,
       height: HEIGHT,
       wireframes: false,
-      background: '#ffffff'
+      background: '#1cace0'
     }
   });
 
-  const wallOpts = { isStatic: true, restitution: 0.2, friction: 0.1, render: { fillStyle: '#e2e8f0' } };
+  const wallOpts = { isStatic: true, restitution: 0.2, friction: 0.1, render: { fillStyle: '#0e93c4' } };
 
   // A marble knocked loose by a shake is allowed to pop up above the visible
   // canvas (a fun little peek), but an invisible ceiling + tall side walls
@@ -259,6 +259,17 @@ Game.physics = (function() {
     return roundPolygonCorners(raw, STAR_CORNER_CUT, STAR_CORNER_SEGMENTS);
   }
 
+  // Game.stateShapes (state-shapes.js, loaded before this file) holds each
+  // state's outline pre-normalized to a circumradius of 1 — scaling by this
+  // marble's actual radius here is the only work left. Falls back to a plain
+  // circle for any name missing from that table so a data gap degrades
+  // gracefully instead of throwing mid-drop.
+  function stateVertices(name, radius) {
+    const unit = Game.stateShapes[name];
+    if (!unit) return null;
+    return unit.map((p) => ({ x: p.x * radius, y: p.y * radius }));
+  }
+
   function spawnMarble(x, y, tierIndex, megaScale = 1) {
     const tier = Game.state.TIERS[tierIndex];
     const radius = tier.radius * megaScale;
@@ -271,13 +282,16 @@ Game.physics = (function() {
 
     const isHexagon = Game.state.marbleShape === 'hexagon';
     const isStar = Game.state.marbleShape === 'star';
+    const stateShape = Game.state.marbleShape === 'state' ? stateVertices(tier.name, radius) : null;
     const body = isHexagon
       ? Bodies.fromVertices(x, y, [hexagonVertices(radius)], bodyOptions)
       : isStar
       ? Bodies.fromVertices(x, y, [starVertices(radius)], bodyOptions)
+      : stateShape
+      ? Bodies.fromVertices(x, y, [stateShape], bodyOptions)
       : Bodies.circle(x, y, radius, bodyOptions);
 
-    if (isHexagon || isStar) {
+    if (isHexagon || isStar || stateShape) {
       // A symmetric shape dropped dead-center with zero spin onto a flat
       // surface is in a perfectly symmetric, torque-free state — nothing in
       // the sim will ever break that tie, so without this nudge it really
@@ -345,6 +359,10 @@ Game.physics = (function() {
     // independent copies in sync isn't worth it — render.js's tracePath()
     // calls this directly so the drawn outline is always the exact collision
     // shape, point for point.
-    starVertices
+    starVertices,
+    // Exported for the same reason — render.js's tracePath() needs the exact
+    // same per-state points (just re-scaled) so the drawn silhouette matches
+    // the collision shape.
+    stateVertices
   };
 })();
