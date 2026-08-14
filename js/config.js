@@ -14,6 +14,35 @@ Game.config = (function() {
     "New Mexico", "Montana", "California", "Texas", "Alaska"
   ];
 
+  // Backdrop color for each flag, used by render.js to fill the hexagon's cut
+  // corners / star's concave notches when a shape's outline clips outside the
+  // flag artwork. Sampled once (the exact pixel at each flag SVG's top-left
+  // corner) rather than computed at runtime: doing this with canvas
+  // getImageData against a file://-loaded image throws a SecurityError in
+  // Chrome (each local file gets its own opaque origin, which taints the
+  // canvas), so a live version of this lookup silently fell back to the
+  // tier's rainbow hue instead — this static table sidesteps that entirely,
+  // the same way it works whether the page is opened from disk or served.
+  const FLAG_EDGE_COLORS = {
+    "Rhode Island": "#ffffff", "Delaware": "#669ca4", "Connecticut": "#0c2d83",
+    "New Jersey": "#f0c568", "New Hampshire": "#002a86", "Vermont": "#003366",
+    "Massachusetts": "#ffffff", "Hawaii": "#d54b61", "Maryland": "#000000",
+    "West Virginia": "#00205b", "South Carolina": "#041e42", "Maine": "#002664",
+    "Indiana": "#000f5d", "Kentucky": "#000066", "Tennessee": "#cc0000",
+    "Virginia": "#364f87", "Ohio": "#2f1a50", "Pennsylvania": "#00205b",
+    "Mississippi": "#ba0c2f", "Louisiana": "#01447b", "Alabama": "#b10021",
+    "Arkansas": "#bf0a30", "North Carolina": "#00205b", "New York": "#002d72",
+    "Iowa": "#0a1f62", "Illinois": "#ffffff", "Wisconsin": "#002986",
+    "Florida": "#c60013", "Missouri": "#bf0a30", "Oklahoma": "#0073cf",
+    "Washington": "#00843d", "Georgia": "#00205b", "Michigan": "#0a3383",
+    "North Dakota": "#00386f", "South Dakota": "#0074a8", "Nebraska": "#002a86",
+    "Kansas": "#00205b", "Idaho": "#003776", "Utah": "#071d49",
+    "Minnesota": "#002d5d", "Wyoming": "#bf0a30", "Oregon": "#01017f",
+    "Colorado": "#00205b", "Nevada": "#0033ab", "Arizona": "#bf0a30",
+    "New Mexico": "#ffd700", "Montana": "#002a86", "California": "#ffffff",
+    "Texas": "#00205b", "Alaska": "#0f204b"
+  };
+
   const STATE_REGIONS = {
     Northeast: ["Connecticut", "Maine", "Massachusetts", "New Hampshire", "New Jersey", "New York", "Pennsylvania", "Rhode Island", "Vermont"],
     Midwest: ["Illinois", "Indiana", "Iowa", "Kansas", "Michigan", "Minnesota", "Missouri", "Nebraska", "North Dakota", "Ohio", "South Dakota", "Wisconsin"],
@@ -87,12 +116,13 @@ Game.config = (function() {
       const radius = Math.round((MIN_RADIUS + Math.pow(index / maxIndex, GROWTH_EXPONENT) * MAX_RADIUS_ADD) * scale);
       const hue = Math.round((index / maxIndex) * 330);
       const color = `hsl(${hue}, 75%, 55%)`;
+      const edgeColor = FLAG_EDGE_COLORS[name] || color;
       const fileName = name.toLowerCase().replace(/ /g, '_') + '.svg';
 
       const imgObj = new Image();
       imgObj.src = `assets/${fileName}`;
 
-      return { level: index, radius, name, fileName, color, imgObj };
+      return { level: index, radius, name, fileName, color, edgeColor, imgObj };
     });
   }
 

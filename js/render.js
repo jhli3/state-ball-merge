@@ -160,18 +160,57 @@ Game.render = (function() {
       tracePath(ctx, radius);
       ctx.clip();
 
-      // Cover-fill the shape's own bounding box (not the full circumscribing
-      // square) so hexagon/star show as much of the flag as the circle does.
       const { width: boxW, height: boxH } = shapeBounds(radius);
       const aspect = tier.imgObj.naturalWidth / tier.imgObj.naturalHeight;
-      let drawW = boxW;
-      let drawH = boxH;
-      if (aspect > boxW / boxH) {
-        drawH = boxH;
-        drawW = boxH * aspect;
+      const boxAspect = boxW / boxH;
+      const isPointy = Game.state.marbleShape === 'hexagon' || Game.state.marbleShape === 'star';
+      let drawW, drawH;
+
+      if (isPointy) {
+        // Hexagon corners and (especially) the star's concave notches cut
+        // deep into the shape's own bounding box, so even cover-fitting
+        // against that box still clips whatever art sits near those edges —
+        // including centered seals that fall in the star's narrow notches.
+        // Contain-fit the whole image so nothing gets cropped, then instead
+        // of a single flat backdrop color, stretch a 1px strip of the
+        // image's own top/bottom (or left/right) edge to fill the leftover
+        // gap. For a plain-field flag that strip is one solid color anyway,
+        // so it looks identical to a flat fill; for color-blocked flags like
+        // Texas it carries the actual canton/stripe boundary out to the
+        // shape's points, so the block pattern keeps going instead of
+        // getting capped by an unrelated solid color.
+        ctx.fillStyle = tier.edgeColor;
+        ctx.fill();
+
+        const natW = tier.imgObj.naturalWidth;
+        const natH = tier.imgObj.naturalHeight;
+
+        if (aspect > boxAspect) {
+          drawW = boxW;
+          drawH = boxW / aspect;
+          const gap = (boxH - drawH) / 2;
+          if (gap > 0.5) {
+            ctx.drawImage(tier.imgObj, 0, 0, natW, 1, -boxW / 2, -boxH / 2, boxW, gap);
+            ctx.drawImage(tier.imgObj, 0, natH - 1, natW, 1, -boxW / 2, drawH / 2, boxW, gap);
+          }
+        } else {
+          drawH = boxH;
+          drawW = boxH * aspect;
+          const gap = (boxW - drawW) / 2;
+          if (gap > 0.5) {
+            ctx.drawImage(tier.imgObj, 0, 0, 1, natH, -boxW / 2, -boxH / 2, gap, boxH);
+            ctx.drawImage(tier.imgObj, natW - 1, 0, 1, natH, drawW / 2, -boxH / 2, gap, boxH);
+          }
+        }
       } else {
-        drawW = boxW;
-        drawH = boxW / aspect;
+        // Circle: cover-fill the shape's own bounding box.
+        if (aspect > boxAspect) {
+          drawH = boxH;
+          drawW = boxH * aspect;
+        } else {
+          drawW = boxW;
+          drawH = boxW / aspect;
+        }
       }
 
       ctx.drawImage(tier.imgObj, -drawW / 2, -drawH / 2, drawW, drawH);
