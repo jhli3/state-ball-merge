@@ -6,67 +6,96 @@ Game.render = (function() {
   // Lives on Game.state (not a local var) because physics.js reads it too —
   // spawnMarble() creates an actual hexagon collision body in "hexagon" mode,
   // not just a hexagon-shaped drawing over a circular one.
+  //
+  // Shown as a picker of buttons (one per shape, all visible at once) rather
+  // than a single cycling toggle — a cycling button only ever shows the
+  // *current* choice, so picking a specific shape meant clicking blind
+  // through the others until you landed on it. Clicking a shape you're
+  // already on is a no-op (skips the rebuild) rather than just re-picking
+  // the same thing, which the old cycling toggle couldn't distinguish from
+  // "advance to the next one" anyway.
   const SHAPE_STORAGE_KEY = 'smm-marble-shape';
   const SHAPES = ['sphere', 'hexagon', 'star', 'state'];
-  const SHAPE_LABELS = { sphere: '🔵 Shape: Marble', hexagon: '⬡ Shape: Hexagon', star: '⭐ Shape: Star', state: '🗺️ Shape: State' };
   const savedShape = localStorage.getItem(SHAPE_STORAGE_KEY);
   Game.state.marbleShape = SHAPES.includes(savedShape) ? savedShape : 'sphere';
 
-  const shapeToggleBtn = document.getElementById('shape-toggle');
+  const shapeOptionBtns = Array.from(document.querySelectorAll('#shape-picker .picker-option'));
+  const shapePickerNote = document.getElementById('shape-picker-note');
 
-  function updateShapeToggleLabel() {
-    shapeToggleBtn.textContent = SHAPE_LABELS[Game.state.marbleShape];
+  function updateShapePicker() {
+    shapeOptionBtns.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.shape === Game.state.marbleShape);
+    });
   }
 
-  shapeToggleBtn.addEventListener('click', () => {
-    const nextIndex = (SHAPES.indexOf(Game.state.marbleShape) + 1) % SHAPES.length;
-    Game.state.marbleShape = SHAPES[nextIndex];
-    try { localStorage.setItem(SHAPE_STORAGE_KEY, Game.state.marbleShape); } catch (e) { /* ignore */ }
-    updateShapeToggleLabel();
-    // Matter.js bodies can't change shape in place — rebuild every marble
-    // on the board so the switch takes effect immediately, not just on drop.
-    Game.physics.rebuildBodies();
+  shapeOptionBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const shape = btn.dataset.shape;
+      if (shape === Game.state.marbleShape) return;
+      Game.state.marbleShape = shape;
+      try { localStorage.setItem(SHAPE_STORAGE_KEY, shape); } catch (e) { /* ignore */ }
+      updateShapePicker();
+      // Matter.js bodies can't change shape in place — rebuild every marble
+      // on the board so the switch takes effect immediately, not just on drop.
+      Game.physics.rebuildBodies();
+    });
   });
 
-  updateShapeToggleLabel();
+  updateShapePicker();
 
-  // --- Marble mode preference (classic gravity-and-container vs. floating space) ---
-  // Space mode only makes physical sense for the round marble (attraction +
-  // zero-g read as "planets", not as a hexagon, star, or state outline), so
-  // switching into it forces the shape to sphere and locks the shape toggle
-  // until switching back out.
+  // --- Marble mode preference (classic gravity-and-container vs. the floating modes) ---
+  // Every floating mode only makes physical sense for the round marble
+  // (attraction/repulsion/orbiting/sorting all read as "planets" or
+  // "particles", not as a hexagon, star, or state outline), so switching
+  // into any of them forces the shape to sphere and locks the shape picker
+  // (each option disabled, plus an inline note explaining why) until
+  // switching back to classic. Same all-options-visible picker as Shape,
+  // for the same reason.
   const MODE_STORAGE_KEY = 'smm-marble-mode';
-  const MODES = ['classic', 'space'];
-  const MODE_LABELS = { classic: '📦 Mode: Classic', space: '🪐 Mode: Space' };
+  const MODES = ['classic', 'space', 'particle', 'orbit', 'poles'];
   const savedMode = localStorage.getItem(MODE_STORAGE_KEY);
   Game.state.marbleMode = MODES.includes(savedMode) ? savedMode : 'classic';
 
-  const modeToggleBtn = document.getElementById('mode-toggle');
+  const modeOptionBtns = Array.from(document.querySelectorAll('#mode-picker .picker-option'));
 
-  function updateModeToggleLabel() {
-    modeToggleBtn.textContent = MODE_LABELS[Game.state.marbleMode];
-    shapeToggleBtn.disabled = Game.state.marbleMode === 'space';
+  function updateModePicker() {
+    modeOptionBtns.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === Game.state.marbleMode);
+    });
+
+    const shapeLocked = Game.state.marbleMode !== 'classic';
+    shapeOptionBtns.forEach(btn => { btn.disabled = shapeLocked; });
+    shapePickerNote.classList.toggle('visible', shapeLocked);
   }
 
-  modeToggleBtn.addEventListener('click', () => {
-    const nextIndex = (MODES.indexOf(Game.state.marbleMode) + 1) % MODES.length;
-    Game.state.marbleMode = MODES[nextIndex];
-    try { localStorage.setItem(MODE_STORAGE_KEY, Game.state.marbleMode); } catch (e) { /* ignore */ }
+  modeOptionBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      if (mode === Game.state.marbleMode) return;
+      Game.state.marbleMode = mode;
+      try { localStorage.setItem(MODE_STORAGE_KEY, mode); } catch (e) { /* ignore */ }
 
-    Game.input.cancelHold();
-    Game.physics.setPhysicsMode(Game.state.marbleMode);
+      Game.input.cancelHold();
+      Game.physics.setPhysicsMode(mode);
 
-    if (Game.state.marbleMode === 'space' && Game.state.marbleShape !== 'sphere') {
-      Game.state.marbleShape = 'sphere';
-      try { localStorage.setItem(SHAPE_STORAGE_KEY, Game.state.marbleShape); } catch (e) { /* ignore */ }
-      updateShapeToggleLabel();
+      if (mode !== 'classic' && Game.state.marbleShape !== 'sphere') {
+        Game.state.marbleShape = 'sphere';
+        try { localStorage.setItem(SHAPE_STORAGE_KEY, Game.state.marbleShape); } catch (e) { /* ignore */ }
+        updateShapePicker();
+      }
+
+      // Rebuild unconditionally, even when the shape didn't need to change —
+      // particle mode also shrinks every marble's radius (see
+      // Game.physics.marbleRadius), so moving into or out of it needs a
+      // rebuild to resize existing bodies, not just a shape swap. Matter.js
+      // bodies can't be resized in place any more than they can change shape.
       Game.physics.rebuildBodies();
-    }
 
-    updateModeToggleLabel();
+      updateModePicker();
+    });
   });
 
-  updateModeToggleLabel();
+  updateModePicker();
   Game.physics.setPhysicsMode(Game.state.marbleMode);
 
   // Traces the current marble shape as a path centered on the origin, ready
@@ -254,15 +283,16 @@ Game.render = (function() {
     if (!Game.state.isCooldown) {
       // 1. Ghost Marble — classic mode drops straight down from a fixed
       // top chute (aimX slides, Y is fixed, so a vertical dashed lane shows
-      // the drop path); space mode places freely wherever aimX/aimY point,
-      // so the ghost just follows the cursor with no lane to draw.
+      // the drop path); space/particle modes place freely wherever
+      // aimX/aimY point, so the ghost just follows the cursor with no lane
+      // to draw.
       const currentData = Game.state.TIERS[Game.state.currentTier];
-      const radius = currentData.radius;
-      const isSpace = Game.state.marbleMode === 'space';
+      const radius = Game.physics.marbleRadius(currentData);
+      const isFreePlacement = Game.state.marbleMode !== 'classic';
       const ghostX = Game.state.aimX;
-      const ghostY = isSpace ? Game.state.aimY : 48;
+      const ghostY = isFreePlacement ? Game.state.aimY : 48;
 
-      if (!isSpace) {
+      if (!isFreePlacement) {
         ctx.save();
         ctx.beginPath();
         ctx.setLineDash([6, 6]);
@@ -295,7 +325,7 @@ Game.render = (function() {
       if (b.gameTier !== undefined) {
         const tier = Game.state.TIERS[b.gameTier];
         const megaScale = b.megaScale || 1;
-        const radius = tier.radius * megaScale;
+        const radius = Game.physics.marbleRadius(tier, megaScale);
 
         ctx.save();
         ctx.translate(b.position.x, b.position.y);

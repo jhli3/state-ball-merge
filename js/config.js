@@ -99,13 +99,16 @@ Game.config = (function() {
   // spreads the size increase more evenly across tiers instead of loading
   // most of it onto the last several merges, which is what made the late
   // game balloon in size so fast it got hard to maneuver around. Dropped
-  // further (1.1 -> 0.85) and MAX_RADIUS_ADD trimmed again (110 -> 90) after
-  // the first pass still wasn't gentle enough. Both are in REFERENCE_WIDTH-px
-  // terms and get scaled by the actual canvas width below, so the curve's
-  // *shape* (and therefore difficulty) is the same regardless of screen
-  // size — only the absolute pixel sizes change.
-  const GROWTH_EXPONENT = 0.85;
-  const MAX_RADIUS_ADD = 90;
+  // further (1.1 -> 0.85 -> 0.75) and MAX_RADIUS_ADD trimmed twice more
+  // (110 -> 90 -> 65) after each pass still wasn't gentle enough — the
+  // largest tier was still ~5.5x the smallest, so even with the flatter
+  // curve the last few merges needed a marble more than a fifth of the
+  // canvas wide to line up. Both are in REFERENCE_WIDTH-px terms and get
+  // scaled by the actual canvas width below, so the curve's *shape* (and
+  // therefore difficulty) is the same regardless of screen size — only the
+  // absolute pixel sizes change.
+  const GROWTH_EXPONENT = 0.75;
+  const MAX_RADIUS_ADD = 65;
   const MIN_RADIUS = 20;
 
   // Build TIERS (small -> large) from whichever states are currently selected

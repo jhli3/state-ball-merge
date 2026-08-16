@@ -48,7 +48,7 @@ Game.core = (function() {
     Composite.clear(engine.world, true);
     Game.state.currentTier = 0;
     Game.state.nextTier = 0;
-    Game.state.aimX = Game.physics.clampAimX(Game.physics.WIDTH / 2, Game.state.TIERS[Game.state.currentTier].radius);
+    Game.state.aimX = Game.physics.clampAimX(Game.physics.WIDTH / 2, Game.physics.marbleRadius(Game.state.TIERS[Game.state.currentTier]));
     Game.state.dropCount = 0;
     Game.state.mergeCount = 0;
     Game.state.currentScore = 0;
@@ -131,7 +131,7 @@ Game.core = (function() {
 
       Game.state.currentTier = Number.isInteger(state.currentTier) && state.currentTier < Game.state.TIERS.length ? state.currentTier : 0;
       Game.state.nextTier = Number.isInteger(state.nextTier) && state.nextTier < Game.state.TIERS.length ? state.nextTier : 0;
-      Game.state.aimX = Game.physics.clampAimX(Game.physics.WIDTH / 2, Game.state.TIERS[Game.state.currentTier].radius);
+      Game.state.aimX = Game.physics.clampAimX(Game.physics.WIDTH / 2, Game.physics.marbleRadius(Game.state.TIERS[Game.state.currentTier]));
 
       Game.state.dropCount = state.dropCount || 0;
       Game.state.mergeCount = state.mergeCount || 0;
@@ -164,7 +164,7 @@ Game.core = (function() {
     Game.audio.initAudio();
     if (Game.state.isCooldown) return;
 
-    const radius = Game.state.TIERS[Game.state.currentTier].radius;
+    const radius = Game.physics.marbleRadius(Game.state.TIERS[Game.state.currentTier]);
     const dropX = Game.physics.clampAimX(Game.state.aimX, radius);
     const dropY = 48;
 
@@ -183,7 +183,7 @@ Game.core = (function() {
     Game.state.nextTier = pickWeightedTier();
     updateNextCard();
 
-    Game.state.aimX = Game.physics.clampAimX(Game.state.aimX, Game.state.TIERS[Game.state.currentTier].radius);
+    Game.state.aimX = Game.physics.clampAimX(Game.state.aimX, Game.physics.marbleRadius(Game.state.TIERS[Game.state.currentTier]));
 
     Game.state.isCooldown = true;
     setTimeout(() => { Game.state.isCooldown = false; }, Game.input.currentDropCooldown());
@@ -191,18 +191,19 @@ Game.core = (function() {
     saveGameState();
   }
 
-  // Space-mode counterpart to dropMarble: spawns the current-tier marble at
-  // rest wherever you're pointing, instead of letting gravity carry it down
-  // from a fixed top chute — the attraction/center-pull forces (physics.js)
-  // are what move it from there. Shares dropMarble's cooldown, drop-zone
-  // check, and tier-progression/scoring/save flow — input.js's fireCurrent()
-  // is what decides which of the two gets called, so both modes end up with
-  // identical click/hold-to-stream/Shift/gamepad controls.
+  // Space/particle-mode counterpart to dropMarble: spawns the current-tier
+  // marble at rest wherever you're pointing, instead of letting gravity
+  // carry it down from a fixed top chute — the attraction/repulsion/
+  // center-pull forces (physics.js) are what move it from there. Shares
+  // dropMarble's cooldown, drop-zone check, and tier-progression/scoring/save
+  // flow — input.js's fireCurrent() is what decides which of the two gets
+  // called, so all modes end up with identical click/hold-to-stream/Shift/
+  // gamepad controls.
   function placeMarble(x, y) {
     Game.audio.initAudio();
     if (Game.state.isCooldown) return;
 
-    const radius = Game.state.TIERS[Game.state.currentTier].radius;
+    const radius = Game.physics.marbleRadius(Game.state.TIERS[Game.state.currentTier]);
     const clampedX = Game.physics.clampAimX(x, radius);
     const clampedY = Game.physics.clampAimY(y, radius);
 
@@ -225,10 +226,11 @@ Game.core = (function() {
   }
 
   // Sweeps every marble at the smallest tier currently on the board — bound
-  // to the gamepad's D-pad left (input.js) as a quick way to clear clutter
-  // without hunting for the right state in the sidebar. Reuses chart.js's
-  // clearStateFromBoard so the removal/pop-sound/save behavior is identical
-  // to clicking that state there.
+  // to the gamepad's D-pad left and the keyboard's Backspace/Delete
+  // (input.js) as a quick way to clear clutter without hunting for the
+  // right state in the sidebar. Reuses chart.js's clearStateFromBoard so
+  // the removal/pop-sound/save behavior is identical to clicking that state
+  // there.
   function deleteSmallestMarbles() {
     const bodies = Composite.allBodies(engine.world).filter(b => b.gameTier !== undefined);
     if (bodies.length === 0) return;

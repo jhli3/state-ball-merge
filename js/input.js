@@ -11,26 +11,27 @@ Game.input = (function() {
   }
 
   // Classic mode only needs the X half of this (aimY sits unused at
-  // whatever default it started at) — space mode places freely, so it
-  // tracks the full pointer position.
+  // whatever default it started at) — space/particle modes place freely, so
+  // it tracks the full pointer position.
   render.canvas.addEventListener('mousemove', (e) => {
     const pos = toCanvasCoords(e);
-    const radius = Game.state.TIERS[Game.state.currentTier].radius;
+    const radius = Game.physics.marbleRadius(Game.state.TIERS[Game.state.currentTier]);
     Game.state.aimX = Game.physics.clampAimX(pos.x, radius);
     Game.state.aimY = Game.physics.clampAimY(pos.y, radius);
   });
 
-  // Classic mode drops from the fixed top chute; space mode places the
-  // marble at rest wherever aimX/aimY currently point, and lets the
-  // attraction/center-pull forces (physics.js) carry it from there — no
-  // velocity involved. Every input path below (click, hold-to-stream, Shift,
-  // gamepad) goes through this one dispatcher instead of calling dropMarble
-  // directly, so space mode gets the exact same controls for free.
+  // Classic mode drops from the fixed top chute; space/particle modes place
+  // the marble at rest wherever aimX/aimY currently point, and let the
+  // attraction/repulsion/center-pull forces (physics.js) carry it from
+  // there — no velocity involved. Every input path below (click,
+  // hold-to-stream, Shift, gamepad) goes through this one dispatcher instead
+  // of calling dropMarble directly, so both floating modes get the exact
+  // same controls for free.
   function fireCurrent() {
-    if (Game.state.marbleMode === 'space') {
-      Game.core.placeMarble(Game.state.aimX, Game.state.aimY);
-    } else {
+    if (Game.state.marbleMode === 'classic') {
       Game.core.dropMarble();
+    } else {
+      Game.core.placeMarble(Game.state.aimX, Game.state.aimY);
     }
   }
 
@@ -100,7 +101,7 @@ Game.input = (function() {
       return;
     }
 
-    const radius = Game.state.TIERS[Game.state.currentTier].radius;
+    const radius = Game.physics.marbleRadius(Game.state.TIERS[Game.state.currentTier]);
     const step = 20;
 
     if (e.key === 'Shift') {
@@ -118,14 +119,22 @@ Game.input = (function() {
     } else if (e.key === 'ArrowRight') {
       Game.state.aimX = Game.physics.clampAimX(Game.state.aimX + step, radius);
     } else if (e.key === 'ArrowUp') {
-      // Only meaningful in space mode's free 2D placement — harmless no-op
-      // effect in classic mode, where aimY isn't read for anything.
+      // Only meaningful in space/particle mode's free 2D placement —
+      // harmless no-op effect in classic mode, where aimY isn't read for
+      // anything.
       Game.state.aimY = Game.physics.clampAimY(Game.state.aimY - step, radius);
     } else if (e.key === 'ArrowDown') {
       Game.state.aimY = Game.physics.clampAimY(Game.state.aimY + step, radius);
     } else if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       Game.core.restartGame();
+    } else if (e.key === 'Backspace' || e.key === 'Delete') {
+      // Keyboard equivalent of the gamepad's D-pad-left binding below —
+      // "Backspace" so it works with the key labeled delete on a Mac
+      // keyboard (which reports as Backspace, not Delete) as well as a
+      // full-size keyboard's forward-delete key.
+      e.preventDefault();
+      Game.core.deleteSmallestMarbles();
     }
   });
 
@@ -371,11 +380,11 @@ Game.input = (function() {
     }
 
     if (!modalOpen) {
-      // Aim: left stick only. X-axis steers left/right in both modes;
-      // Y-axis additionally steers up/down in space mode's free 2D
+      // Aim: left stick only. X-axis steers left/right in all modes;
+      // Y-axis additionally steers up/down in space/particle mode's free 2D
       // placement (a harmless no-op in classic mode, where aimY isn't
       // read for anything) — same split the mouse and arrow keys use.
-      const radius = Game.state.TIERS[Game.state.currentTier].radius;
+      const radius = Game.physics.marbleRadius(Game.state.TIERS[Game.state.currentTier]);
       const stickX = pad.axes[0] || 0;
       if (Math.abs(stickX) > GAMEPAD_STICK_DEADZONE) {
         Game.state.aimX = Game.physics.clampAimX(Game.state.aimX + stickX * GAMEPAD_AIM_SPEED, radius);
@@ -392,8 +401,9 @@ Game.input = (function() {
       if (justPressed(9)) Game.core.restartGame();
 
       // D-pad left: sweep the smallest tier currently on the board — a
-      // quick way to clear clutter. D-pad left/right have no other job
-      // while aiming (the stick handles that), so this is free real estate.
+      // quick way to clear clutter, same action as the Backspace/Delete key
+      // above. D-pad left/right have no other job while aiming (the stick
+      // handles that), so this is free real estate.
       if (justPressed(14)) Game.core.deleteSmallestMarbles();
     }
 

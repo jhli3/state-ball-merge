@@ -15,7 +15,7 @@ Game.state = {
   currentTier: 0,
   nextTier: 0,
   aimX: 0,
-  aimY: 0, // only meaningful in space mode — free 2D placement, not just the container chute's horizontal slide
+  aimY: 0, // only meaningful in space/particle mode — free 2D placement, not just the container chute's horizontal slide
   isCooldown: false,
   isModalOpen: false,
 
@@ -30,9 +30,10 @@ Game.state = {
   // and by render.js when drawing one, so the two stay in sync.
   marbleShape: 'sphere',
 
-  // 'classic' | 'space' — read by physics.js (gravity/attraction/walls),
-  // input.js (drop-at-a-fixed-chute vs. place-anywhere) and render.js (which
-  // aim preview to draw). Space mode is sphere-only; see render.js's mode
-  // toggle for the forced-shape rule.
+  // 'classic' | 'space' | 'particle' | 'orbit' | 'poles' — read by physics.js
+  // (gravity/per-mode forces/walls), input.js (drop-at-a-fixed-chute vs.
+  // place-anywhere) and render.js (which aim preview to draw). Every
+  // non-classic mode is sphere-only; see render.js's mode toggle for the
+  // forced-shape rule.
   marbleMode: 'classic'
 };

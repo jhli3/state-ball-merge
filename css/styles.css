@@ -21,6 +21,7 @@
 
   --font-display: 'Baloo 2', 'Nunito', sans-serif;
   --font-body: 'Nunito', sans-serif;
+  --font-icon: 'Material Symbols Outlined';
 }
 
 html, body {
@@ -38,6 +39,29 @@ body {
   height: 100vh;
   overflow: hidden;
   user-select: none;
+}
+
+/* Every icon in the app is a Material Symbols ligature glyph (the element's
+   text content is the icon's name, e.g. "settings" — the font renders that
+   as a glyph instead of literal text) rather than an emoji character, so
+   icon rendering is consistent across platforms/OSes instead of each
+   browser substituting its own emoji font. Component rules below override
+   font-size per context (the picker chips, the modal close button, the
+   success screen's celebration icon); this is just the shared baseline. */
+.material-symbols-outlined {
+  font-family: var(--font-icon);
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
 }
 
 .app-layout {
@@ -125,14 +149,19 @@ body {
 }
 
 .chart-item.unlocked:hover::after {
-  content: '✕ clear';
+  /* Renders as the Material Symbols "close" glyph, not literal text — a
+     generated-content ligature the same way the .material-symbols-outlined
+     class works on a real element, since a ::after pseudo-element can't
+     hold a child span of its own. */
+  content: 'close';
+  font-family: var(--font-icon);
+  font-feature-settings: 'liga';
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 20px;
   color: var(--card);
   background: rgba(31, 58, 77, 0.6);
 }
@@ -332,6 +361,14 @@ body {
   cursor: pointer;
   transition: all 0.2s;
   width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.audio-toggle-btn .material-symbols-outlined {
+  font-size: 18px;
 }
 
 .audio-toggle-btn.active {
@@ -343,6 +380,98 @@ body {
 .audio-toggle-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* Shape/Mode pickers — a segmented row of options you can see and tap
+   directly, replacing the old single cycling toggle button (which only ever
+   showed the current choice, so you had to click blind through the others
+   to find what you wanted). Same chip language as .modal-state-item so it
+   reads as one system with the Choose States picker. */
+.picker-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.picker-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  padding: 0 2px;
+}
+
+.picker-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.picker-option {
+  flex: 1 1 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px 7px;
+  border-radius: 14px;
+  border: 1px solid var(--border-soft);
+  background: var(--card-soft);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.picker-option:hover:not(:disabled) {
+  border-color: var(--border);
+}
+
+.picker-option:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.picker-option.active {
+  background: var(--green-tint-bg);
+  border-color: var(--green-tint-border);
+}
+
+.picker-option:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.picker-option:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.picker-option-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.picker-option-name {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  line-height: 1.2;
+}
+
+.picker-option.active .picker-option-name {
+  color: var(--green-dark);
+}
+
+.picker-note {
+  display: none;
+  font-size: 11px;
+  color: var(--ink-faint);
+  padding: 0 2px;
+}
+
+.picker-note.visible {
+  display: block;
 }
 
 #game-container {
@@ -381,6 +510,9 @@ canvas {
   font-weight: 700;
   cursor: pointer;
   transition: background 0.2s, transform 0.1s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .restart-btn:hover { background: var(--card-soft); }
@@ -397,6 +529,14 @@ canvas {
   font-weight: 700;
   cursor: pointer;
   transition: background 0.2s, transform 0.1s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.restart-btn .material-symbols-outlined,
+.shake-btn .material-symbols-outlined {
+  font-size: 18px;
 }
 
 .shake-btn:hover { background: var(--primary-dark); }
@@ -462,6 +602,13 @@ canvas {
   cursor: pointer;
   padding: 4px;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close-btn .material-symbols-outlined {
+  font-size: 20px;
 }
 
 .modal-toolbar {
@@ -648,7 +795,7 @@ canvas {
 }
 
 .settings-box {
-  width: min(320px, 90vw);
+  width: min(360px, 92vw);
 }
 
 .settings-list {
@@ -695,14 +842,6 @@ canvas {
 .howto-note {
   font-weight: 500;
   color: var(--ink-faint);
-}
-
-.howto-footnote {
-  font-family: var(--font-body);
-  font-size: 12px;
-  color: var(--ink-faint);
-  line-height: 1.5;
-  margin-top: 14px;
 }
 
 /* Virtual cursor for switch-controller/gamepad navigation (see input.js) —

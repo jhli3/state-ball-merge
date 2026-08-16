@@ -5,7 +5,7 @@
   <title>State Ball Merge</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
   <!-- poly-decomp: lets Matter.js decompose concave bodies (the star shape, and
        the real state-outline shapes in state-shapes.js) into convex parts.
@@ -31,9 +31,9 @@
 
     <div class="controls">
       <div class="controls-row">
-        <button id="shake-btn" class="shake-btn">✨ Shake Container</button>
-        <button id="restart-btn" class="restart-btn">🔄 Restart</button>
-        <button id="settings-btn" class="restart-btn">⚙️ Settings</button>
+        <button id="shake-btn" class="shake-btn"><span class="material-symbols-outlined">vibration</span> Shake Container</button>
+        <button id="restart-btn" class="restart-btn"><span class="material-symbols-outlined">restart_alt</span> Restart</button>
+        <button id="settings-btn" class="restart-btn"><span class="material-symbols-outlined">settings</span> Settings</button>
       </div>
     </div>
   </div>
@@ -60,14 +60,62 @@
   <div class="modal-box settings-box">
     <div class="modal-header">
       <span class="modal-title">Settings</span>
-      <button id="settings-close-btn" class="modal-close-btn">✕</button>
+      <button id="settings-close-btn" class="modal-close-btn"><span class="material-symbols-outlined">close</span></button>
     </div>
     <div class="settings-list">
-      <button id="howto-btn" class="audio-toggle-btn">❓ How to Play</button>
-      <button id="audio-toggle" class="audio-toggle-btn">🎵 Ambient: Off</button>
-      <button id="shape-toggle" class="audio-toggle-btn">🔵 Shape: Marble</button>
-      <button id="mode-toggle" class="audio-toggle-btn">📦 Mode: Classic</button>
-      <button id="customize-btn" class="audio-toggle-btn">⚙️ Choose States</button>
+      <button id="howto-btn" class="audio-toggle-btn"><span class="material-symbols-outlined">help</span> How to Play</button>
+      <button id="audio-toggle" class="audio-toggle-btn"><span class="material-symbols-outlined">music_off</span> <span class="btn-label">Ambient: Off</span></button>
+
+      <div class="picker-group">
+        <span class="picker-label">Mode</span>
+        <div class="picker-options" id="mode-picker">
+          <button class="picker-option" data-mode="classic" type="button">
+            <span class="picker-option-icon material-symbols-outlined">inventory_2</span>
+            <span class="picker-option-name">Classic</span>
+          </button>
+          <button class="picker-option" data-mode="space" type="button">
+            <span class="picker-option-icon material-symbols-outlined">rocket_launch</span>
+            <span class="picker-option-name">Space</span>
+          </button>
+          <button class="picker-option" data-mode="particle" type="button">
+            <span class="picker-option-icon material-symbols-outlined">scatter_plot</span>
+            <span class="picker-option-name">Particle</span>
+          </button>
+          <button class="picker-option" data-mode="orbit" type="button">
+            <span class="picker-option-icon material-symbols-outlined">satellite_alt</span>
+            <span class="picker-option-name">Orbit</span>
+          </button>
+          <button class="picker-option" data-mode="poles" type="button">
+            <span class="picker-option-icon material-symbols-outlined">compare_arrows</span>
+            <span class="picker-option-name">Poles</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="picker-group">
+        <span class="picker-label">Shape</span>
+        <div class="picker-options" id="shape-picker">
+          <button class="picker-option" data-shape="sphere" type="button">
+            <span class="picker-option-icon material-symbols-outlined">circle</span>
+            <span class="picker-option-name">Marble</span>
+          </button>
+          <button class="picker-option" data-shape="hexagon" type="button">
+            <span class="picker-option-icon material-symbols-outlined">hexagon</span>
+            <span class="picker-option-name">Hexagon</span>
+          </button>
+          <button class="picker-option" data-shape="star" type="button">
+            <span class="picker-option-icon material-symbols-outlined">star</span>
+            <span class="picker-option-name">Star</span>
+          </button>
+          <button class="picker-option" data-shape="state" type="button">
+            <span class="picker-option-icon material-symbols-outlined">map</span>
+            <span class="picker-option-name">State</span>
+          </button>
+        </div>
+        <span id="shape-picker-note" class="picker-note">Locked to Marble outside Classic mode</span>
+      </div>
+
+      <button id="customize-btn" class="audio-toggle-btn"><span class="material-symbols-outlined">checklist</span> Choose States</button>
     </div>
   </div>
 </div>
@@ -76,7 +124,7 @@
   <div class="modal-box">
     <div class="modal-header">
       <span class="modal-title">Choose States</span>
-      <button id="modal-close-btn" class="modal-close-btn">✕</button>
+      <button id="modal-close-btn" class="modal-close-btn"><span class="material-symbols-outlined">close</span></button>
     </div>
     <div class="modal-toolbar">
       <button id="select-all-btn" class="modal-toolbar-btn">Select All</button>
@@ -101,7 +149,7 @@
 
 <div id="success-modal-backdrop" class="modal-backdrop">
   <div class="modal-box success-box">
-    <div class="success-emoji">🎉</div>
+    <div class="success-emoji material-symbols-outlined">celebration</div>
     <div class="success-title">You merged all the way to <span id="success-state-name"></span>!</div>
     <div id="success-flag" class="success-flag-preview"></div>
     <div id="success-stats" class="success-stats"></div>
@@ -116,16 +164,16 @@
   <div class="modal-box howto-box">
     <div class="modal-header">
       <span class="modal-title">How to Play</span>
-      <button id="howto-close-btn" class="modal-close-btn">✕</button>
+      <button id="howto-close-btn" class="modal-close-btn"><span class="material-symbols-outlined">close</span></button>
     </div>
     <div class="howto-list">
       <div class="howto-row">
         <span class="howto-action">Aim</span>
-        <span class="howto-controls">Mouse · ← → ↑ ↓ · Left Stick <span class="howto-note">(↑↓ only matter in Space mode)</span></span>
+        <span class="howto-controls">Mouse · ← → ↑ ↓ · Left Stick <span class="howto-note">(↑↓ only matter outside Classic mode)</span></span>
       </div>
       <div class="howto-row">
         <span class="howto-action">Drop / Place</span>
-        <span class="howto-controls">Click · Shift · A <span class="howto-note">(hold any to stream; places freely in Space mode)</span></span>
+        <span class="howto-controls">Click · Shift · A <span class="howto-note">(hold any to stream; places freely outside Classic mode)</span></span>
       </div>
       <div class="howto-row">
         <span class="howto-action">Shake</span>
@@ -141,7 +189,7 @@
       </div>
       <div class="howto-row">
         <span class="howto-action">Delete Smallest</span>
-        <span class="howto-controls">D-Pad Left <span class="howto-note">(sweeps the smallest tier on the board)</span></span>
+        <span class="howto-controls">Backspace · D-Pad Left <span class="howto-note">(sweeps the smallest tier on the board)</span></span>
       </div>
       <div class="howto-row">
         <span class="howto-action">Navigate Menu</span>
@@ -156,7 +204,6 @@
         <span class="howto-controls">Esc · B</span>
       </div>
     </div>
-    <div class="howto-footnote">Merge two of the same state to grow it into the next one up. How to Play, Ambient, Shape, Mode, and the state picker now live behind the ⚙️ Settings button, toggled open and closed with a click or the - button, so the left stick stays completely dedicated to aiming and Shake/Restart/Settings only fire from their own buttons (Y/+/-) — never from D-Pad/stick navigation. 🎮 D-Pad and the stick switch to moving the highlight (A to select, B to back out) only once you're inside Settings or the state picker. Works with a Switch Pro Controller or paired Joy-Cons over Bluetooth or USB. Toggle 🪐 Mode: Space to place marbles anywhere in the box instead of dropping them from the top — every marble pulls gently on every other one (harder the closer their sizes are) and everything drifts slowly back toward center, so the board naturally clusters and re-centers itself. Space mode is round-marble only.</div>
   </div>
 </div>
 

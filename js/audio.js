@@ -36,6 +36,17 @@ Game.audio = (function() {
     return BASE_FREQ * Math.pow(2, semitones / 12);
   }
 
+  // Updates the toggle button's icon glyph and label text in place rather
+  // than overwriting textContent wholesale — the button also carries a
+  // Material Symbols icon span that a plain textContent assignment would
+  // clobber.
+  function setAmbientButtonState(isOn) {
+    const btn = document.getElementById('audio-toggle');
+    btn.querySelector('.material-symbols-outlined').textContent = isOn ? 'music_note' : 'music_off';
+    btn.querySelector('.btn-label').textContent = isOn ? 'Ambient: On' : 'Ambient: Off';
+    btn.classList.toggle('active', isOn);
+  }
+
   function initAudio() {
     if (!audioCtx) {
       audioCtx = new AudioContextCtor();
@@ -61,9 +72,7 @@ Game.audio = (function() {
     playNextAmbientChord();
     scheduleAmbientMelody();
 
-    const btn = document.getElementById('audio-toggle');
-    btn.textContent = '🎵 Ambient: On';
-    btn.classList.add('active');
+    setAmbientButtonState(true);
   }
 
   // Soft pentatonic chord pad, one octave below the melody register — slowly
@@ -176,9 +185,7 @@ Game.audio = (function() {
       ambientBus = null;
     }
 
-    const btn = document.getElementById('audio-toggle');
-    btn.textContent = '🎵 Ambient: Off';
-    btn.classList.remove('active');
+    setAmbientButtonState(false);
   }
 
   document.getElementById('audio-toggle').addEventListener('click', () => {
