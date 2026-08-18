@@ -52,13 +52,15 @@ Game.physics = (function() {
   // the world while floating — see setPhysicsMode below.
   const spaceCeiling = Bodies.rectangle(WIDTH / 2, -30, WIDTH * 2, 60, wallOpts);
 
-  // Classic is the only mode with normal downward gravity and a fixed drop
-  // chute; every other mode (space, particle, orbit, poles, ...) floats in
-  // zero gravity and places marbles freely instead, so this is a blanket
-  // "not classic" check rather than an enumerated list — a new floating
-  // mode doesn't need to be added here too.
+  // Space/particle/orbit/poles float in zero gravity and place marbles
+  // freely; classic and chaos both fall under normal gravity from a fixed
+  // drop chute (chaos's whole hook is what happens on collision, not how
+  // marbles get onto the board, so it reuses classic's placement entirely).
+  // Exported so render.js/input.js can key their own placement-vs-drop and
+  // shape-lock decisions off the exact same list instead of each keeping
+  // its own copy that could drift out of sync.
   function isFloatingMode(mode) {
-    return mode !== 'classic';
+    return mode === 'space' || mode === 'particle' || mode === 'orbit' || mode === 'poles';
   }
 
   // Classic mode falls under normal downward gravity with the far ceiling
@@ -211,14 +213,16 @@ Game.physics = (function() {
     }
   }
 
-  // Orbit-mode motion: no pairwise interaction between marbles at all —
-  // each body circles its own tier's target ring radius (smaller tiers
-  // orbit tight, larger tiers orbit wide), so the board reads as
-  // concentric rings of same-size marbles actively circling rather than
-  // drifting to a stop. Same-tier marbles sharing a ring gradually catch up
-  // to each other as they go around and merge on contact — this function
-  // only supplies the motion; game.js's collision handler does the actual
-  // merging, same as every other mode.
+  // Orbit-mode motion: no screen-fixed rings — instead every marble orbits
+  // the nearest marble one tier up from it (skipping over any tier that
+  // isn't currently on the board), so the board reads as a nested chain of
+  // moons-around-planets rather than concentric rings around empty space.
+  // Whichever tier is currently the largest on the board has nothing bigger
+  // to orbit, so those marbles are the "root" and orbit the screen center
+  // instead, at a small wobble radius. Same-tier marbles sharing a parent
+  // gradually catch up to each other as they go around and merge on
+  // contact — this function only supplies the motion; game.js's collision
+  // handler does the actual merging, same as every other mode.
   //
   // This sets velocity directly every tick instead of just applying a
   // force. A force-based tangential push plus a force-based radial spring
@@ -226,37 +230,90 @@ Game.physics = (function() {
   // real orbital mechanics do: any tangential speed needs a *precisely*
   // matched centripetal pull to stay circular, and a plain spring isn't
   // it — bodies spiraled outward instead of settling into rings. Directly
-  // damping the radial velocity component and easing the tangential
+  // setting the radial velocity component from ring error (a clamped
+  // proportional controller, not a spring) and easing the tangential
   // component toward a target speed sidesteps that entirely, at the cost
   // of not being "real" physics — which is fine, this mode was never
   // meant to be a Keplerian simulator, just a satisfying carousel.
+  //
+  // The radial component specifically has to be a plain clamped-P
+  // controller rather than a damped spring (error*spring + oldV*damping):
+  // that recurrence is only *conditionally* stable — solving its
+  // characteristic equation shows the error can grow by a small factor
+  // every tick regardless of how the damping/spring constants are tuned,
+  // since positive spring stiffness always pushes the dominant eigenvalue
+  // just past 1. A single fixed, mostly-stationary target (the original
+  // screen-center rings) never grew enough for that slow drift to be
+  // visible before a merge reset it. Once orbit targets became *other
+  // moving marbles* chained several deep, the same slow-growing error
+  // compounds down the chain tick over tick and blows up into wild
+  // slingshotting within seconds. Clamping the radial speed outright
+  // (rather than letting velocity accumulate via a spring) is
+  // unconditionally stable: it can only ever close the gap, never
+  // overshoot into a growing oscillation.
   const ORBIT_CENTER = { x: WIDTH / 2, y: HEIGHT / 2 };
-  const ORBIT_MIN_RADIUS = Math.min(WIDTH, HEIGHT) * 0.16; // ring radius for the smallest tier
-  const ORBIT_MAX_RADIUS = Math.min(WIDTH, HEIGHT) * 0.46; // ring radius for the largest tier
-  const ORBIT_RADIAL_DAMPING = 0.85; // fraction of radial velocity kept each tick — the rest is what stops a bumped marble from just sailing off its ring
-  const ORBIT_RADIAL_SPRING = 0.03; // px of ring error -> px/tick of inward/outward velocity nudge, on top of the damping above
-  const ORBIT_TANGENT_SPEED = 2.2; // px/tick every body eases toward along its ring, regardless of ring size (so inner rings complete a lap faster than outer ones, like a carousel with fixed rim speed)
-  const ORBIT_TANGENT_EASE = 0.05; // fraction of the gap to ORBIT_TANGENT_SPEED closed per tick — gradual ramp-up/recovery rather than an instant snap to speed
+  const ORBIT_ROOT_RADIUS = Math.min(WIDTH, HEIGHT) * 0.12; // wobble radius for whichever tier is currently largest on the board — just enough to keep several same-tier "suns" visibly apart, not a big showcase ring
+  const ORBIT_CHILD_GAP = 14; // px of clearance beyond touching between a marble and whatever it's orbiting, so the orbit reads as a ring around the parent rather than a body resting flush against it
+  const ORBIT_ANGULAR_SPEED = 0.045; // rad/tick every body eases its orbit toward, the same rate at every level of the chain — deliberately angular rather than linear speed, since child orbit radii here range from tiny (orbiting a barely-bigger marble) to root-sized, and a fixed linear speed would make the tiny ones spin nonsensically fast
+  const ORBIT_RADIAL_GAIN = 0.08; // px of ring error -> px/tick of closing speed, before the clamp below
+  const ORBIT_RADIAL_MAX_SPEED = 6; // px/tick cap on how fast a marble reels itself in/out toward its ring — what keeps a marble that's freshly far from its target (e.g. right after switching into this mode) from being flung inward at a wild speed
+  const ORBIT_TANGENT_EASE = 0.05; // fraction of the gap to the target tangential speed closed per tick — gradual ramp-up/recovery rather than an instant snap to speed
   const ORBIT_DIRECTION = 1; // 1 = clockwise, -1 = counterclockwise — canvas y grows downward, so this is arbitrary but shared by every body
 
-  function orbitTargetRadius(tier) {
-    const maxTierIndex = Math.max(1, Game.state.TIERS.length - 1);
-    const t = tier / maxTierIndex;
-    return ORBIT_MIN_RADIUS + t * (ORBIT_MAX_RADIUS - ORBIT_MIN_RADIUS);
-  }
-
   function applyOrbitForces(bodies) {
+    if (bodies.length === 0) return;
+
+    const uniqueTiers = [...new Set(bodies.map(b => b.gameTier))].sort((a, z) => a - z);
+
+    // Bucket by tier once so each child's parent search below is scoped to
+    // just its target tier instead of rescanning the whole board.
+    const byTier = new Map();
     bodies.forEach(b => {
-      const dx = b.position.x - ORBIT_CENTER.x;
-      const dy = b.position.y - ORBIT_CENTER.y;
+      if (!byTier.has(b.gameTier)) byTier.set(b.gameTier, []);
+      byTier.get(b.gameTier).push(b);
+    });
+
+    bodies.forEach(b => {
+      const tierIdx = uniqueTiers.indexOf(b.gameTier);
+      const isRoot = tierIdx === uniqueTiers.length - 1;
+
+      // What this body orbits: the screen center for a root (largest tier
+      // present), or whichever body of the next-larger tier present is
+      // physically nearest — "nearest" is what lets several children of the
+      // same parent tier spread across multiple actual parent marbles
+      // instead of all piling onto a single one.
+      let center, parentVelocity, targetRadius;
+      if (isRoot) {
+        center = ORBIT_CENTER;
+        parentVelocity = { x: 0, y: 0 };
+        targetRadius = ORBIT_ROOT_RADIUS;
+      } else {
+        const candidates = byTier.get(uniqueTiers[tierIdx + 1]);
+        let parent = candidates[0];
+        let nearestDistSq = Infinity;
+        candidates.forEach(p => {
+          const dx = p.position.x - b.position.x;
+          const dy = p.position.y - b.position.y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq < nearestDistSq) { nearestDistSq = distSq; parent = p; }
+        });
+        center = parent.position;
+        parentVelocity = parent.velocity;
+        const aRadius = marbleRadius(Game.state.TIERS[b.gameTier], b.megaScale || 1);
+        const pRadius = marbleRadius(Game.state.TIERS[parent.gameTier], parent.megaScale || 1);
+        targetRadius = aRadius + pRadius + ORBIT_CHILD_GAP;
+      }
+
+      const dx = b.position.x - center.x;
+      const dy = b.position.y - center.y;
       const dist = Math.hypot(dx, dy);
 
       if (dist < 1) {
-        // Dead center is a singularity for both the radial and tangential
-        // directions below (there's no "toward the ring" or "sideways"
-        // when you're already sitting on the pivot) — nudge it off-center
-        // so it picks up an orbit instead of sitting frozen at the one spot
-        // no direction here can escape.
+        // Dead center (of whatever it's orbiting) is a singularity for both
+        // the radial and tangential directions below (there's no "toward
+        // the ring" or "sideways" when you're already sitting on the pivot)
+        // — nudge it off-center so it picks up an orbit instead of sitting
+        // frozen at the one spot no direction here can escape.
         Body.setPosition(b, { x: b.position.x + (Math.random() - 0.5) * 4, y: b.position.y + (Math.random() - 0.5) * 4 });
         return;
       }
@@ -267,18 +324,24 @@ Game.physics = (function() {
       const tx = -ry * ORBIT_DIRECTION;
       const ty = rx * ORBIT_DIRECTION;
 
-      const target = orbitTargetRadius(b.gameTier);
-      const error = target - dist; // positive = currently inside the ring, needs to move outward
+      const error = targetRadius - dist; // positive = currently inside the ring, needs to move outward
 
-      const vRadial = b.velocity.x * rx + b.velocity.y * ry;
-      const vTangential = b.velocity.x * tx + b.velocity.y * ty;
+      // Velocity relative to whatever this body is orbiting — for a root
+      // that's the stationary screen center, but for a child it's the
+      // parent's own (possibly itself orbiting) motion, so the child's
+      // circular motion stacks on top of its parent's drift instead of
+      // fighting it.
+      const relVx = b.velocity.x - parentVelocity.x;
+      const relVy = b.velocity.y - parentVelocity.y;
+      const vTangential = relVx * tx + relVy * ty;
 
-      const newVRadial = vRadial * ORBIT_RADIAL_DAMPING + error * ORBIT_RADIAL_SPRING;
-      const newVTangential = vTangential + (ORBIT_TANGENT_SPEED - vTangential) * ORBIT_TANGENT_EASE;
+      const targetTangential = ORBIT_ANGULAR_SPEED * targetRadius;
+      const newVRadial = Math.max(-ORBIT_RADIAL_MAX_SPEED, Math.min(ORBIT_RADIAL_MAX_SPEED, error * ORBIT_RADIAL_GAIN));
+      const newVTangential = vTangential + (targetTangential - vTangential) * ORBIT_TANGENT_EASE;
 
       Body.setVelocity(b, {
-        x: rx * newVRadial + tx * newVTangential,
-        y: ry * newVRadial + ty * newVTangential
+        x: parentVelocity.x + rx * newVRadial + tx * newVTangential,
+        y: parentVelocity.y + ry * newVRadial + ty * newVTangential
       });
     });
   }
@@ -444,8 +507,17 @@ Game.physics = (function() {
   // down further) so the other modes' difficulty/feel isn't affected.
   const PARTICLE_SIZE_SCALE = 0.6;
 
+  // Orbit mode only: same idea as particle mode's shrink above, needed for
+  // a different reason — orbit's parent/child chains (applyOrbitForces)
+  // need room for each marble to trace a full ring around whatever it's
+  // orbiting without immediately clipping a sibling's ring or the next
+  // parent up the chain. At full config.js size those rings would overlap
+  // constantly on a board with more than a couple of tiers in play.
+  const ORBIT_SIZE_SCALE = 0.6;
+
   function marbleRadius(tier, megaScale = 1) {
-    const modeScale = Game.state.marbleMode === 'particle' ? PARTICLE_SIZE_SCALE : 1;
+    const mode = Game.state.marbleMode;
+    const modeScale = mode === 'particle' ? PARTICLE_SIZE_SCALE : mode === 'orbit' ? ORBIT_SIZE_SCALE : 1;
     return tier.radius * megaScale * modeScale;
   }
 
@@ -547,7 +619,7 @@ Game.physics = (function() {
   return {
     WIDTH, HEIGHT, engine, render, containerEl,
     MEGA_GROWTH, MAX_MEGA_SCALE,
-    setPhysicsMode,
+    setPhysicsMode, isFloatingMode,
     clampAimX, clampAimY, spawnMarble, rebuildBodies, isDropZoneClear,
     // Exported so render.js's drawing code uses the exact same radius
     // (including particle mode's shrink) as the collision body it's drawing

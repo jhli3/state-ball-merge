@@ -318,12 +318,18 @@ Game.core = (function() {
     });
 
     processMergeCollisions(event.pairs);
+    if (Game.state.marbleMode === 'chaos') processChaosCollisions(event.pairs);
   });
 
   // Pairs still touching after collisionStart skipped them for being within
   // the spawn grace period (above) wouldn't fire collisionStart again once
   // that period lapses — they're still in continuous contact, not a fresh
-  // collision — so this catches them once they become eligible.
+  // collision — so this catches them once they become eligible. Chaos
+  // deliberately does NOT hook in here: "on collision" for chaos means the
+  // moment two marbles first touch, not every tick they're still pressed
+  // together — collisionActive fires continuously for the entire time a
+  // resting pair stays in contact, which would read as one long touch
+  // getting rolled over and over rather than a single collision.
   Events.on(engine, 'collisionActive', (event) => {
     processMergeCollisions(event.pairs);
   });
@@ -406,6 +412,101 @@ Game.core = (function() {
         }
       }
     });
+  }
+
+  // Chaos-mode collision effect — on top of the normal same-tier merge rule
+  // above (which stays completely intact), every fresh collision in this
+  // mode also rolls a small independent chance per marble to either clone
+  // itself or vanish. Only hooked into collisionStart (see below), not
+  // collisionActive, so a resting pair that stays pressed together counts
+  // as one collision, not a fresh roll every tick it's still touching.
+  // CHAOS_ROLL_COOLDOWN_MS is a second line of defense against the same
+  // problem: Matter's solver can still fire a brand new collisionStart for
+  // a pair that never really separated (a resting contact micro-jittering
+  // apart and back together), and this stops that from reading as a fresh
+  // collision either. CHAOS_MAX_MARBLES is a hard population ceiling —
+  // duplicate rolls are silently skipped once the board is at capacity, so
+  // a duplicate-triggers-more-collisions-triggers-more-duplicates feedback
+  // loop can never actually run away and lag the tab.
+  const CHAOS_ROLL_COOLDOWN_MS = 250;
+  const CHAOS_DUPLICATE_CHANCE = 0.05;
+  const CHAOS_DELETE_CHANCE = 0.02; // rolled independently of the duplicate chance above, not "the other 2% of what's left"
+  const CHAOS_MAX_MARBLES = 140;
+
+  function processChaosCollisions(pairs) {
+    const now = engine.timing.timestamp;
+    pairs.forEach(pair => {
+      const bodyA = pair.bodyA.parent;
+      const bodyB = pair.bodyB.parent;
+      // Only marble-vs-marble contact counts — a bounce off the ground,
+      // walls, or ceiling has no gameTier on the other side of the pair and
+      // shouldn't roll for duplicate/delete just because the marble touched
+      // something.
+      if (bodyA.gameTier === undefined || bodyB.gameTier === undefined) return;
+
+      rollChaosOutcome(bodyA, now);
+      rollChaosOutcome(bodyB, now);
+    });
+  }
+
+  function rollChaosOutcome(body, now) {
+    if (
+      body.gameTier === undefined ||
+      body.isMerging ||
+      now - body.spawnTime < MERGE_GRACE_MS ||
+      (body.lastChaosRoll !== undefined && now - body.lastChaosRoll < CHAOS_ROLL_COOLDOWN_MS)
+    ) return;
+
+    // Set before the roll, not after — this is what makes the cooldown
+    // check above also cover a body appearing in more than one pair within
+    // this same collision event (a marble wedged between two neighbors in
+    // a pile), not just repeat events over time.
+    body.lastChaosRoll = now;
+
+    const roll = Math.random();
+    if (roll < CHAOS_DUPLICATE_CHANCE) {
+      duplicateMarble(body);
+    } else if (roll < CHAOS_DUPLICATE_CHANCE + CHAOS_DELETE_CHANCE) {
+      deleteMarble(body);
+    }
+  }
+
+  // Deferred the same way processMergeCollisions defers its own
+  // add/remove — mutating the world synchronously from inside a Matter
+  // collision callback risks corrupting whatever pair/body array Matter
+  // itself is still iterating over.
+  function duplicateMarble(body) {
+    setTimeout(() => {
+      const totalMarbles = Composite.allBodies(engine.world).filter(b => b.gameTier !== undefined).length;
+      if (totalMarbles >= CHAOS_MAX_MARBLES) return;
+
+      const tier = Game.state.TIERS[body.gameTier];
+      const radius = Game.physics.marbleRadius(tier, body.megaScale || 1);
+      // Placed just off to one side of the original at a random angle
+      // (rather than dead-center on top of it) so the clone doesn't spawn
+      // fully overlapping and get its own duplicate/delete roll fired
+      // immediately by the resulting interpenetration.
+      const angle = Math.random() * Math.PI * 2;
+      const x = body.position.x + Math.cos(angle) * radius * 0.6;
+      const y = body.position.y + Math.sin(angle) * radius * 0.6;
+
+      const clone = Game.physics.spawnMarble(x, y, body.gameTier, body.megaScale || 1);
+      Body.setVelocity(clone, {
+        x: body.velocity.x + (Math.random() - 0.5) * 3,
+        y: body.velocity.y - Math.random() * 2 // slight upward pop so it doesn't just sink straight back into the original
+      });
+      Composite.add(engine.world, clone);
+      Game.audio.playZenTone(body.gameTier, 3, false);
+      saveGameState();
+    }, 0);
+  }
+
+  function deleteMarble(body) {
+    setTimeout(() => {
+      Composite.remove(engine.world, body);
+      Game.audio.playPopSound(0.85 + Math.random() * 0.4);
+      saveGameState();
+    }, 0);
   }
 
   return {

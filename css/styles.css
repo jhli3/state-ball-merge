@@ -409,8 +409,24 @@ body {
   gap: 6px;
 }
 
+/* Mode has 6 options — a fixed 3-column grid gives two even, full-width
+   rows instead of leaving flex-wrap to fit however many happen to squeeze
+   into the container width (5 in a row + 1 alone, last time this was
+   flex-wrapped) and stretch a single leftover button too wide. Shape stays
+   on the flex-wrap layout above since its 4 options already fill a row
+   evenly on their own. */
+#mode-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+#mode-picker .picker-option {
+  max-width: none;
+}
+
 .picker-option {
   flex: 1 1 64px;
+  max-width: 110px;
   display: flex;
   flex-direction: column;
   align-items: center;

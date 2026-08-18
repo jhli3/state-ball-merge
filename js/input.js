@@ -20,18 +20,18 @@ Game.input = (function() {
     Game.state.aimY = Game.physics.clampAimY(pos.y, radius);
   });
 
-  // Classic mode drops from the fixed top chute; space/particle modes place
-  // the marble at rest wherever aimX/aimY currently point, and let the
-  // attraction/repulsion/center-pull forces (physics.js) carry it from
-  // there — no velocity involved. Every input path below (click,
+  // Classic and chaos both drop from the fixed top chute; the floating modes
+  // (space/particle/orbit/poles) place the marble at rest wherever
+  // aimX/aimY currently point, and let their own forces (physics.js) carry
+  // it from there — no velocity involved. Every input path below (click,
   // hold-to-stream, Shift, gamepad) goes through this one dispatcher instead
-  // of calling dropMarble directly, so both floating modes get the exact
+  // of calling dropMarble directly, so every floating mode gets the exact
   // same controls for free.
   function fireCurrent() {
-    if (Game.state.marbleMode === 'classic') {
-      Game.core.dropMarble();
-    } else {
+    if (Game.physics.isFloatingMode(Game.state.marbleMode)) {
       Game.core.placeMarble(Game.state.aimX, Game.state.aimY);
+    } else {
+      Game.core.dropMarble();
     }
   }
 

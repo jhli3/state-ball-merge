@@ -30,10 +30,12 @@ Game.state = {
   // and by render.js when drawing one, so the two stay in sync.
   marbleShape: 'sphere',
 
-  // 'classic' | 'space' | 'particle' | 'orbit' | 'poles' — read by physics.js
-  // (gravity/per-mode forces/walls), input.js (drop-at-a-fixed-chute vs.
-  // place-anywhere) and render.js (which aim preview to draw). Every
-  // non-classic mode is sphere-only; see render.js's mode toggle for the
-  // forced-shape rule.
+  // 'classic' | 'space' | 'particle' | 'orbit' | 'poles' | 'chaos' — read by
+  // physics.js (gravity/per-mode forces/walls, and Game.physics.isFloatingMode
+  // for which of these count as "floating"), input.js
+  // (drop-at-a-fixed-chute vs. place-anywhere), game.js (chaos's
+  // collision-triggered duplicate/delete) and render.js (which aim preview
+  // to draw). Every floating mode is sphere-only; see render.js's mode
+  // toggle for the forced-shape rule.
   marbleMode: 'classic'
 };

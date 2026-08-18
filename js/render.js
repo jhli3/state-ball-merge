@@ -43,16 +43,17 @@ Game.render = (function() {
 
   updateShapePicker();
 
-  // --- Marble mode preference (classic gravity-and-container vs. the floating modes) ---
+  // --- Marble mode preference (classic/chaos gravity-and-container vs. the floating modes) ---
   // Every floating mode only makes physical sense for the round marble
   // (attraction/repulsion/orbiting/sorting all read as "planets" or
   // "particles", not as a hexagon, star, or state outline), so switching
   // into any of them forces the shape to sphere and locks the shape picker
   // (each option disabled, plus an inline note explaining why) until
-  // switching back to classic. Same all-options-visible picker as Shape,
-  // for the same reason.
+  // switching back to classic or chaos — chaos keeps classic's gravity and
+  // drop chute, so it has no such restriction on shape. Same
+  // all-options-visible picker as Shape, for the same reason.
   const MODE_STORAGE_KEY = 'smm-marble-mode';
-  const MODES = ['classic', 'space', 'particle', 'orbit', 'poles'];
+  const MODES = ['classic', 'space', 'particle', 'orbit', 'poles', 'chaos'];
   const savedMode = localStorage.getItem(MODE_STORAGE_KEY);
   Game.state.marbleMode = MODES.includes(savedMode) ? savedMode : 'classic';
 
@@ -63,7 +64,7 @@ Game.render = (function() {
       btn.classList.toggle('active', btn.dataset.mode === Game.state.marbleMode);
     });
 
-    const shapeLocked = Game.state.marbleMode !== 'classic';
+    const shapeLocked = Game.physics.isFloatingMode(Game.state.marbleMode);
     shapeOptionBtns.forEach(btn => { btn.disabled = shapeLocked; });
     shapePickerNote.classList.toggle('visible', shapeLocked);
   }
@@ -78,15 +79,15 @@ Game.render = (function() {
       Game.input.cancelHold();
       Game.physics.setPhysicsMode(mode);
 
-      if (mode !== 'classic' && Game.state.marbleShape !== 'sphere') {
+      if (Game.physics.isFloatingMode(mode) && Game.state.marbleShape !== 'sphere') {
         Game.state.marbleShape = 'sphere';
         try { localStorage.setItem(SHAPE_STORAGE_KEY, Game.state.marbleShape); } catch (e) { /* ignore */ }
         updateShapePicker();
       }
 
       // Rebuild unconditionally, even when the shape didn't need to change —
-      // particle mode also shrinks every marble's radius (see
-      // Game.physics.marbleRadius), so moving into or out of it needs a
+      // particle and orbit modes also shrink every marble's radius (see
+      // Game.physics.marbleRadius), so moving into or out of either needs a
       // rebuild to resize existing bodies, not just a shape swap. Matter.js
       // bodies can't be resized in place any more than they can change shape.
       Game.physics.rebuildBodies();
@@ -281,14 +282,14 @@ Game.render = (function() {
     const ctx = render.context;
 
     if (!Game.state.isCooldown) {
-      // 1. Ghost Marble — classic mode drops straight down from a fixed
-      // top chute (aimX slides, Y is fixed, so a vertical dashed lane shows
-      // the drop path); space/particle modes place freely wherever
+      // 1. Ghost Marble — classic and chaos both drop straight down from a
+      // fixed top chute (aimX slides, Y is fixed, so a vertical dashed lane
+      // shows the drop path); the floating modes place freely wherever
       // aimX/aimY point, so the ghost just follows the cursor with no lane
       // to draw.
       const currentData = Game.state.TIERS[Game.state.currentTier];
       const radius = Game.physics.marbleRadius(currentData);
-      const isFreePlacement = Game.state.marbleMode !== 'classic';
+      const isFreePlacement = Game.physics.isFloatingMode(Game.state.marbleMode);
       const ghostX = Game.state.aimX;
       const ghostY = isFreePlacement ? Game.state.aimY : 48;
 
